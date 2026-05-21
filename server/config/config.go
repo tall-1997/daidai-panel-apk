@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -81,12 +82,31 @@ func Load(path string) (*Config, error) {
 		cfg.JWT.RefreshTokenExpire = 1440 * time.Hour
 	}
 
+	cfg.Data.Dir = resolveAbsoluteDataPath(cfg.Data.Dir)
+	cfg.Data.ScriptsDir = resolveAbsoluteDataPath(cfg.Data.ScriptsDir)
+	cfg.Data.LogDir = resolveAbsoluteDataPath(cfg.Data.LogDir)
+
 	os.MkdirAll(cfg.Data.Dir, 0755)
 	os.MkdirAll(cfg.Data.ScriptsDir, 0755)
 	os.MkdirAll(cfg.Data.LogDir, 0755)
 
 	C = cfg
 	return cfg, nil
+}
+
+func resolveAbsoluteDataPath(raw string) string {
+	trimmed := filepath.Clean(strings.TrimSpace(raw))
+	if trimmed == "" || trimmed == "." {
+		return trimmed
+	}
+	if filepath.IsAbs(trimmed) {
+		return trimmed
+	}
+	abs, err := filepath.Abs(trimmed)
+	if err != nil {
+		return trimmed
+	}
+	return abs
 }
 
 func loadOrGenerateSecret(dataDir string) string {

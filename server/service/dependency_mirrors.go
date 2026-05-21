@@ -34,7 +34,7 @@ func EffectiveNpmMirror(configured string) string {
 }
 
 func PipInstallEnv(base []string, configured string) []string {
-	env := append([]string{}, base...)
+	env := SanitizePipEnv(base)
 	mirror := EffectivePipMirror(configured)
 	if mirror == "" {
 		return env
@@ -45,6 +45,46 @@ func PipInstallEnv(base []string, configured string) []string {
 		env = append(env, "PIP_TRUSTED_HOST="+host)
 	}
 	return env
+}
+
+// pipConflictingEnvKeys 列出会与面板内部 pip 调用相冲突的环境变量：
+//   - PIP_PREFIX / PIP_HOME / PIP_TARGET / PIP_ROOT 都会被 pip 转成对应命令行选项；
+//     宿主机如果同时通过 ~/.pydistutils.cfg、systemd unit 等地方注入多个，
+//     pip 会抛出 "Cannot set --home and --prefix together" 等冲突错误。
+//   - PIP_USER 会强制走 --user 安装到用户目录，覆盖 venv，破坏面板依赖隔离。
+//   - PIP_INSTALL_OPTION 历史上是把任意 setup.py install 选项透传给 pip，
+//     是 --home / --prefix 冲突的常见来源。
+//   - PYTHONUSERBASE 决定 --user 安装的根目录，与 venv 同样冲突。
+//
+// 面板调用的 pip 始终来自托管 venv 或系统 pip，自带正确的安装目标，
+// 不需要也不应该让上述变量参与。
+var pipConflictingEnvKeys = map[string]struct{}{
+	"PIP_PREFIX":         {},
+	"PIP_HOME":           {},
+	"PIP_TARGET":         {},
+	"PIP_ROOT":           {},
+	"PIP_USER":           {},
+	"PIP_INSTALL_OPTION": {},
+	"PYTHONUSERBASE":     {},
+}
+
+// SanitizePipEnv 移除所有可能与面板内部 pip 调用相冲突的环境变量。
+// 已通过 PipInstallEnv 显式注入的变量（如 PIP_INDEX_URL）不会被剥离。
+func SanitizePipEnv(base []string) []string {
+	cleaned := make([]string, 0, len(base))
+	for _, entry := range base {
+		idx := strings.IndexByte(entry, '=')
+		if idx <= 0 {
+			cleaned = append(cleaned, entry)
+			continue
+		}
+		key := strings.ToUpper(entry[:idx])
+		if _, conflicting := pipConflictingEnvKeys[key]; conflicting {
+			continue
+		}
+		cleaned = append(cleaned, entry)
+	}
+	return cleaned
 }
 
 func NpmInstallEnv(base []string, configured string) []string {

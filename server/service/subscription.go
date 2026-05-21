@@ -188,7 +188,7 @@ func pullGitRepoWithCallback(ctx context.Context, sub *model.Subscription, authC
 		}
 
 		emit(fmt.Sprintf("[检测到已有仓库] %s 已存在 Git 仓库，接下来会同步远端并覆盖更新本地文件", saveDir))
-		emit(fmt.Sprintf("[同步远端地址] 正在校正订阅地址 -> %s", authCfg.RemoteURL))
+		emit(fmt.Sprintf("[同步远端地址] 正在校正订阅地址 -> %s", authCfg.DisplayURL))
 		output, err := syncGitRemoteWithCallback(ctx, destDir, authCfg.RemoteURL, env, emit)
 		fullOutput.WriteString(output)
 		if err != nil {
@@ -301,7 +301,7 @@ func pullGitRepoWithCallback(ctx context.Context, sub *model.Subscription, authC
 				return fullOutput.String(), err
 			}
 
-			emit(fmt.Sprintf("[同步远端地址] 正在校正订阅地址 -> %s", authCfg.RemoteURL))
+			emit(fmt.Sprintf("[同步远端地址] 正在校正订阅地址 -> %s", authCfg.DisplayURL))
 			output, err = syncGitRemoteWithCallback(ctx, destDir, authCfg.RemoteURL, env, emit)
 			fullOutput.WriteString(output)
 			if err != nil {
@@ -358,7 +358,7 @@ func pullGitRepoWithCallback(ctx context.Context, sub *model.Subscription, authC
 		}
 	}
 
-	emit(fmt.Sprintf("[git clone] %s -> %s", authCfg.RemoteURL, saveDir))
+	emit(fmt.Sprintf("[git clone] %s -> %s", authCfg.DisplayURL, saveDir))
 	os.MkdirAll(destDir, 0755)
 	args := []string{"clone", "--depth", "1"}
 	if sub.Branch != "" {

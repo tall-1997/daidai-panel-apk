@@ -454,9 +454,14 @@ func (h *DepsHandler) Cancel(c *gin.Context) {
 }
 
 func (h *DepsHandler) PipList(c *gin.Context) {
-	out, err := exec.Command("pip3", "list", "--format=json").Output()
+	pipEnv := service.SanitizePipEnv(os.Environ())
+	listCmd := exec.Command("pip3", "list", "--format=json")
+	listCmd.Env = pipEnv
+	out, err := listCmd.Output()
 	if err != nil {
-		out, err = exec.Command("pip", "list", "--format=json").Output()
+		fallback := exec.Command("pip", "list", "--format=json")
+		fallback.Env = pipEnv
+		out, err = fallback.Output()
 		if err != nil {
 			response.InternalError(c, "pip 不可用")
 			return
@@ -792,7 +797,7 @@ func uninstallDependency(id uint, depType, name string) {
 			pipBin = "pip"
 		}
 		cmd = exec.Command(pipBin, "uninstall", "-y", name)
-		cmd.Env = service.AppendProxyEnv(os.Environ())
+		cmd.Env = service.SanitizePipEnv(service.AppendProxyEnv(os.Environ()))
 	case model.DepTypeLinux:
 		linuxPackageOperationMu.Lock()
 		defer linuxPackageOperationMu.Unlock()
@@ -829,7 +834,7 @@ func forceUninstallDependency(depType, name string) {
 			pipBin = "pip"
 		}
 		cmd = exec.Command(pipBin, "uninstall", "-y", "--no-deps", name)
-		cmd.Env = service.AppendProxyEnv(os.Environ())
+		cmd.Env = service.SanitizePipEnv(service.AppendProxyEnv(os.Environ()))
 	case model.DepTypeLinux:
 		linuxPackageOperationMu.Lock()
 		defer linuxPackageOperationMu.Unlock()

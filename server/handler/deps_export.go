@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -11,6 +12,7 @@ import (
 	"daidai-panel/config"
 	"daidai-panel/database"
 	"daidai-panel/model"
+	"daidai-panel/service"
 )
 
 func buildDependencyExportText(depType string, deps []model.Dependency) (string, error) {
@@ -87,7 +89,9 @@ func resolvePythonDependencyVersions() (map[string]string, error) {
 	}
 
 	pipBin := filepath.Join(config.C.Data.Dir, "deps", "python", "venv", "bin", "pip")
-	out, err := exec.Command(pipBin, "list", "--format=json").Output()
+	listCmd := exec.Command(pipBin, "list", "--format=json")
+	listCmd.Env = service.SanitizePipEnv(os.Environ())
+	out, err := listCmd.Output()
 	if err != nil {
 		return nil, err
 	}

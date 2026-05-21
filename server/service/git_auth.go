@@ -1,8 +1,8 @@
 package service
 
 import (
-	"encoding/base64"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +14,7 @@ import (
 type gitAuthConfig struct {
 	Env         []string
 	RemoteURL   string
+	DisplayURL  string
 	CleanupFunc func()
 }
 
@@ -21,6 +22,7 @@ func buildGitAuthConfig(baseEnv []string, remoteURL string, sub *model.Subscript
 	env := AppendProxyEnv(baseEnv)
 	cleanup := func() {}
 	remoteURL = strings.TrimSpace(remoteURL)
+	displayURL := remoteURL
 	authType := ""
 	if sub != nil {
 		authType = sub.EffectiveAuthType()
@@ -42,17 +44,20 @@ func buildGitAuthConfig(baseEnv []string, remoteURL string, sub *model.Subscript
 		if sub == nil || strings.TrimSpace(sub.AuthToken) == "" {
 			return gitAuthConfig{}, fmt.Errorf("已配置 Token 鉴权，但访问令牌为空")
 		}
-		if strings.HasPrefix(strings.ToLower(remoteURL), "ssh://") || strings.Contains(remoteURL, "@") && strings.Contains(remoteURL, ":") && !strings.Contains(remoteURL, "://") {
+		if !isHTTPGitRemoteURL(remoteURL) {
 			return gitAuthConfig{}, fmt.Errorf("Token 鉴权仅支持 HTTP/HTTPS 仓库地址，请改用 HTTPS 地址")
 		}
-		username := strings.TrimSpace(sub.AuthUsername)
-		headerValue := "Authorization: Basic " + buildGitBasicAuthValue(username, sub.AuthToken)
-		env = append(env, "GIT_HTTP_EXTRA_HEADER="+headerValue)
+		embedded, err := injectGitTokenIntoURL(remoteURL, sub.AuthUsername, sub.AuthToken)
+		if err != nil {
+			return gitAuthConfig{}, err
+		}
+		remoteURL = embedded
 	}
 
 	return gitAuthConfig{
 		Env:         env,
 		RemoteURL:   remoteURL,
+		DisplayURL:  displayURL,
 		CleanupFunc: cleanup,
 	}, nil
 }
@@ -91,15 +96,23 @@ func shellEscapeSSHArg(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
-func buildGitBasicAuthValue(username, token string) string {
+func isHTTPGitRemoteURL(remoteURL string) bool {
+	lower := strings.ToLower(strings.TrimSpace(remoteURL))
+	return strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://")
+}
+
+func injectGitTokenIntoURL(remoteURL, username, token string) (string, error) {
+	parsed, err := url.Parse(remoteURL)
+	if err != nil {
+		return "", fmt.Errorf("解析仓库 URL 失败: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", fmt.Errorf("Token 鉴权仅支持 HTTP/HTTPS 仓库地址")
+	}
 	username = strings.TrimSpace(username)
 	if username == "" {
 		username = "x-access-token"
 	}
-	encoded := base64.StdEncoding.EncodeToString([]byte(username + ":" + strings.TrimSpace(token)))
-	return encoded
-}
-
-func buildGitHTTPAuthHeader(username, token string) string {
-	return "Authorization: Basic " + buildGitBasicAuthValue(username, token)
+	parsed.User = url.UserPassword(username, strings.TrimSpace(token))
+	return parsed.String(), nil
 }

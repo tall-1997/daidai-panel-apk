@@ -37,7 +37,9 @@ func DependencyInstalled(depType, name string) bool {
 				continue
 			}
 			if _, err := os.Stat(pipBin); err == nil {
-				if out, err := exec.Command(pipBin, "show", name).CombinedOutput(); err == nil && strings.Contains(string(out), "Name:") {
+				showCmd := exec.Command(pipBin, "show", name)
+				showCmd.Env = SanitizePipEnv(os.Environ())
+				if out, err := showCmd.CombinedOutput(); err == nil && strings.Contains(string(out), "Name:") {
 					return true
 				}
 			}

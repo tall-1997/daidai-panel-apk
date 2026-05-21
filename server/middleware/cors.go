@@ -1,9 +1,11 @@
 package middleware
 
 import (
-	"net/url"
+	"log"
 	"net"
+	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"daidai-panel/config"
@@ -83,6 +85,9 @@ func isSameOriginRequest(c *gin.Context, origin string) bool {
 		c.GetHeader("X-Forwarded-Host"),
 		c.GetHeader("X-Original-Host"),
 	}
+	if forwarded := c.GetHeader("Forwarded"); forwarded != "" {
+		candidates = append(candidates, parseForwardedHosts(forwarded)...)
+	}
 
 	for _, candidate := range candidates {
 		if extractHost(candidate) == originHost {
@@ -91,6 +96,73 @@ func isSameOriginRequest(c *gin.Context, origin string) bool {
 	}
 
 	return false
+}
+
+// parseForwardedHosts 从 RFC 7239 `Forwarded` header 中解析所有 host= 字段。
+// 例如：Forwarded: for=192.0.2.60;proto=http;host=example.com, for=198.51.100.17
+func parseForwardedHosts(value string) []string {
+	var hosts []string
+	for _, segment := range strings.Split(value, ",") {
+		for _, pair := range strings.Split(segment, ";") {
+			pair = strings.TrimSpace(pair)
+			if len(pair) < 5 {
+				continue
+			}
+			if !strings.EqualFold(pair[:5], "host=") {
+				continue
+			}
+			host := strings.Trim(pair[5:], `"`)
+			if host != "" {
+				hosts = append(hosts, host)
+			}
+		}
+	}
+	return hosts
+}
+
+// isPrivateOrLoopbackOrigin 判断 Origin 的 host 是否为 IP 且在私有/局域网/Loopback 网段。
+// 命中后视为可信来源（典型场景：飞牛 OS / 群晖 / 家用 NAS 等通过 LAN IP 访问），跳过严格 CORS 检查。
+// 域名 origin 不会命中本函数，仍需走 allowedOrigins 或同源校验。
+func isPrivateOrLoopbackOrigin(origin string) bool {
+	host := extractHost(origin)
+	if host == "" {
+		return false
+	}
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.Trim(host, "[]")
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return isPrivateOrLocalIP(ip)
+}
+
+var (
+	corsRejectLogOnce sync.Map
+	corsRejectLogTTL  = 5 * time.Minute
+)
+
+func logCORSRejection(c *gin.Context, origin string) {
+	key := origin + "|" + c.Request.Host
+	now := time.Now()
+	if last, ok := corsRejectLogOnce.Load(key); ok {
+		if when, ok := last.(time.Time); ok && now.Sub(when) < corsRejectLogTTL {
+			return
+		}
+	}
+	corsRejectLogOnce.Store(key, now)
+
+	log.Printf(
+		"[CORS] 拒绝跨域请求 origin=%q host=%q X-Forwarded-Host=%q Forwarded=%q method=%s path=%s — 如需放行请在 config.yaml 的 cors.origins 中加入该 origin",
+		origin,
+		c.Request.Host,
+		c.GetHeader("X-Forwarded-Host"),
+		c.GetHeader("Forwarded"),
+		c.Request.Method,
+		c.Request.URL.Path,
+	)
 }
 
 func CORS() gin.HandlerFunc {
@@ -110,7 +182,14 @@ func CORS() gin.HandlerFunc {
 			if matchesConfiguredOrigin(origin, allowedOrigins) {
 				return true
 			}
-			return isSameOriginRequest(c, origin)
+			if isSameOriginRequest(c, origin) {
+				return true
+			}
+			if isPrivateOrLoopbackOrigin(origin) {
+				return true
+			}
+			logCORSRejection(c, origin)
+			return false
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Accept", "X-Requested-With"},

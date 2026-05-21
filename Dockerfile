@@ -30,14 +30,15 @@ RUN GOARM=$(case "${TARGETVARIANT}" in v7) echo 7;; v6) echo 6;; v5) echo 5;; *)
 FROM alpine:3.19
 
 RUN apk add --no-cache \
-    ca-certificates tzdata bash curl \
+    ca-certificates tzdata bash curl wget \
     gcompat libc6-compat libstdc++ \
     nginx \
     python3 py3-pip \
     nodejs npm \
     go \
     git openssh-client \
-    docker-cli
+    docker-cli \
+    su-exec shadow
 
 RUN mkdir -p /app/Dumb-Panel/scripts /app/Dumb-Panel/logs /app/Dumb-Panel/backups /run/nginx /tmp && chmod 1777 /tmp
 
@@ -58,5 +59,9 @@ ENV PANEL_PORT=5700
 EXPOSE ${PANEL_PORT}
 
 VOLUME ["/app/Dumb-Panel"]
+
+# 容器健康检查：飞牛 OS / 群晖等 NAS 容器面板依赖此标记容器状态。
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget --quiet --tries=1 --spider "http://127.0.0.1:${PANEL_PORT}/api/v1/health" || exit 1
 
 ENTRYPOINT ["/app/entrypoint.sh"]

@@ -2,8 +2,101 @@ package service
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestSanitizePipEnvStripsConflictingVars(t *testing.T) {
+	base := []string{
+		"PATH=/usr/bin",
+		"HOME=/root",
+		"PIP_HOME=/opt/pip-home",
+		"PIP_PREFIX=/opt/pip-prefix",
+		"PIP_TARGET=/opt/pip-target",
+		"PIP_ROOT=/opt/pip-root",
+		"PIP_USER=true",
+		"PIP_INSTALL_OPTION=--home=/opt/foo",
+		"PYTHONUSERBASE=/opt/userbase",
+		"PIP_INDEX_URL=https://example.com/simple",
+		"PIP_TRUSTED_HOST=example.com",
+		"LANG=zh_CN.UTF-8",
+		"NOT_A_KV_PAIR",
+	}
+
+	cleaned := SanitizePipEnv(base)
+
+	mustKeep := []string{
+		"PATH=/usr/bin",
+		"HOME=/root",
+		"PIP_INDEX_URL=https://example.com/simple",
+		"PIP_TRUSTED_HOST=example.com",
+		"LANG=zh_CN.UTF-8",
+		"NOT_A_KV_PAIR",
+	}
+	for _, want := range mustKeep {
+		found := false
+		for _, entry := range cleaned {
+			if entry == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected sanitized env to retain %q, got %v", want, cleaned)
+		}
+	}
+
+	mustDropPrefixes := []string{
+		"PIP_HOME=",
+		"PIP_PREFIX=",
+		"PIP_TARGET=",
+		"PIP_ROOT=",
+		"PIP_USER=",
+		"PIP_INSTALL_OPTION=",
+		"PYTHONUSERBASE=",
+	}
+	for _, prefix := range mustDropPrefixes {
+		for _, entry := range cleaned {
+			if strings.HasPrefix(entry, prefix) {
+				t.Errorf("expected %q to be stripped, but found %q", prefix, entry)
+			}
+		}
+	}
+}
+
+func TestSanitizePipEnvIsCaseInsensitiveForKeys(t *testing.T) {
+	cleaned := SanitizePipEnv([]string{"pip_prefix=/opt/x", "Pip_Home=/opt/y"})
+	for _, entry := range cleaned {
+		if strings.Contains(strings.ToLower(entry), "pip_prefix=") || strings.Contains(strings.ToLower(entry), "pip_home=") {
+			t.Fatalf("expected case-insensitive strip, got entry %q", entry)
+		}
+	}
+}
+
+func TestPipInstallEnvRemovesConflictingVarsAndInjectsMirror(t *testing.T) {
+	base := []string{
+		"PATH=/usr/bin",
+		"PIP_PREFIX=/opt/pip-prefix",
+		"PIP_HOME=/opt/pip-home",
+	}
+	env := PipInstallEnv(base, "https://example.com/simple")
+
+	for _, entry := range env {
+		if strings.HasPrefix(entry, "PIP_PREFIX=") || strings.HasPrefix(entry, "PIP_HOME=") {
+			t.Fatalf("expected PIP_PREFIX/PIP_HOME stripped, got %q", entry)
+		}
+	}
+
+	hasIndex := false
+	for _, entry := range env {
+		if entry == "PIP_INDEX_URL=https://example.com/simple" {
+			hasIndex = true
+		}
+	}
+	if !hasIndex {
+		t.Fatalf("expected PIP_INDEX_URL to be injected, env=%v", env)
+	}
+}
 
 func TestEffectivePipMirrorFallsBackToDefaultAcceleratedMirror(t *testing.T) {
 	cases := []struct {

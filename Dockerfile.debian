@@ -30,13 +30,14 @@ RUN GOARM=$(case "${TARGETVARIANT}" in v7) echo 7;; v6) echo 6;; v5) echo 5;; *)
 FROM node:20.19.0-bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates tzdata curl \
+    ca-certificates tzdata curl wget \
     libstdc++6 libgcc-s1 \
     nginx \
     python3 python3-pip python3-venv \
     golang-go \
     git openssh-client \
     docker.io \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /app/Dumb-Panel/scripts /app/Dumb-Panel/logs /app/Dumb-Panel/backups /run/nginx /tmp \
@@ -61,5 +62,9 @@ ENV NGINX_DEFAULT_CONF=/etc/nginx/conf.d/default.conf
 EXPOSE ${PANEL_PORT}
 
 VOLUME ["/app/Dumb-Panel"]
+
+# 容器健康检查：飞牛 OS / 群晖等 NAS 容器面板依赖此标记容器状态。
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget --quiet --tries=1 --spider "http://127.0.0.1:${PANEL_PORT}/api/v1/health" || exit 1
 
 ENTRYPOINT ["/app/entrypoint.sh"]

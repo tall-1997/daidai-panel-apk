@@ -178,7 +178,7 @@ func sendToChannel(ch model.NotifyChannel, title, content string, context map[st
 	case "wecom_app":
 		err = sendWecomAppWithContext(cfg, title, content, context)
 	case "bark":
-		err = sendBark(cfg, title, content)
+		err = sendBarkWithContext(cfg, title, content, context)
 	case "pushplus":
 		err = sendPushplus(cfg, title, content)
 	case "serverchan":
@@ -613,6 +613,10 @@ func sendWecomAppWithContext(cfg map[string]string, title, content string, conte
 }
 
 func sendBark(cfg map[string]string, title, content string) error {
+	return sendBarkWithContext(cfg, title, content, nil)
+}
+
+func sendBarkWithContext(cfg map[string]string, title, content string, context map[string]string) error {
 	server := cfg["server"]
 	key := cfg["key"]
 	if key == "" {
@@ -638,8 +642,12 @@ func sendBark(cfg map[string]string, title, content string) error {
 	if v := cfg["level"]; v != "" {
 		body["level"] = v
 	}
-	if v := cfg["url"]; v != "" {
-		body["url"] = v
+	jumpURL := strings.TrimSpace(context["url"])
+	if jumpURL == "" {
+		jumpURL = cfg["url"]
+	}
+	if jumpURL != "" {
+		body["url"] = jumpURL
 	}
 	return httpPost(apiURL, body, nil)
 }

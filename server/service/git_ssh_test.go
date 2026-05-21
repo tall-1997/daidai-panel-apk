@@ -58,12 +58,12 @@ func TestAppendGitSSHEnvUsesPersistentKnownHosts(t *testing.T) {
 	}
 }
 
-func TestBuildGitAuthConfigUsesHTTPHeaderForTokenAuth(t *testing.T) {
+func TestBuildGitAuthConfigEmbedsTokenIntoURL(t *testing.T) {
 	testutil.SetupTestEnv(t)
 
 	sub := &model.Subscription{
-		URL:      "https://github.com/example/private.git",
-		AuthType: model.SubAuthTypeToken,
+		URL:       "https://github.com/example/private.git",
+		AuthType:  model.SubAuthTypeToken,
 		AuthToken: "ghp_test_token",
 	}
 	cfg, err := buildGitAuthConfig([]string{"BASE=1"}, sub.URL, sub, "")
@@ -71,22 +71,48 @@ func TestBuildGitAuthConfigUsesHTTPHeaderForTokenAuth(t *testing.T) {
 		t.Fatalf("build git auth config with token: %v", err)
 	}
 
-	if cfg.RemoteURL != sub.URL {
-		t.Fatalf("expected remote URL unchanged, got %q", cfg.RemoteURL)
+	if cfg.DisplayURL != sub.URL {
+		t.Fatalf("expected DisplayURL to stay clean, got %q", cfg.DisplayURL)
+	}
+	if cfg.RemoteURL == sub.URL {
+		t.Fatalf("expected RemoteURL to embed credentials, got unchanged %q", cfg.RemoteURL)
+	}
+	if !strings.Contains(cfg.RemoteURL, "x-access-token:ghp_test_token@github.com") {
+		t.Fatalf("expected default x-access-token user with token embedded, got %q", cfg.RemoteURL)
+	}
+	if strings.Contains(cfg.DisplayURL, "ghp_test_token") {
+		t.Fatalf("DisplayURL should not leak token, got %q", cfg.DisplayURL)
 	}
 
-	var header string
 	for _, entry := range cfg.Env {
 		if strings.HasPrefix(entry, "GIT_HTTP_EXTRA_HEADER=") {
-			header = strings.TrimPrefix(entry, "GIT_HTTP_EXTRA_HEADER=")
-			break
+			t.Fatalf("token auth should not rely on GIT_HTTP_EXTRA_HEADER, got %q", entry)
 		}
 	}
-	if header == "" {
-		t.Fatalf("expected GIT_HTTP_EXTRA_HEADER to be set, env=%v", cfg.Env)
+}
+
+func TestBuildGitAuthConfigUsesCustomUsernameForToken(t *testing.T) {
+	testutil.SetupTestEnv(t)
+
+	sub := &model.Subscription{
+		URL:          "https://gitee.com/example/private.git",
+		AuthType:     model.SubAuthTypeToken,
+		AuthUsername: "demo-user",
+		AuthToken:    "secret token+/?",
 	}
-	if header != buildGitHTTPAuthHeader(sub.AuthUsername, sub.AuthToken) {
-		t.Fatalf("unexpected auth header: got %q want %q", header, buildGitHTTPAuthHeader(sub.AuthUsername, sub.AuthToken))
+	cfg, err := buildGitAuthConfig(nil, sub.URL, sub, "")
+	if err != nil {
+		t.Fatalf("build git auth config: %v", err)
+	}
+
+	if !strings.HasPrefix(cfg.RemoteURL, "https://demo-user:") {
+		t.Fatalf("expected custom username in remote URL, got %q", cfg.RemoteURL)
+	}
+	if !strings.Contains(cfg.RemoteURL, "@gitee.com/example/private.git") {
+		t.Fatalf("expected gitee host preserved after credentials, got %q", cfg.RemoteURL)
+	}
+	if strings.Contains(cfg.RemoteURL, "secret token+/?") {
+		t.Fatalf("expected token to be URL-encoded, got %q", cfg.RemoteURL)
 	}
 }
 
