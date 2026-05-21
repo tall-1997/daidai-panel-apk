@@ -118,8 +118,17 @@ if [ -n "${NGINX_CONF_PATH}" ] && [ -f "${NGINX_CONF_PATH}" ]; then
 fi
 
 # --- config.yaml 幂等生成 --------------------------------------------------
-# 旧版本每次启动都会覆盖 config.yaml，导致用户在面板里改过的 CORS / 信任代理 /
-# JWT 过期时间等全部丢失，watchtower 自动升级时尤其明显。现在仅在文件不存在时生成。
+# 历史背景：v2.2.5 及更早的 entrypoint 每次启动都会用 heredoc 覆盖 config.yaml，
+# 导致用户在面板里改过的 CORS / 信任代理 / JWT 过期时间等被强制丢失。
+#
+# v2.2.6 改成幂等，但镜像内置的 /app/config.yaml（Dockerfile COPY server/config.yaml
+# 进去的）用的是相对路径 `./data/daidai.db`、`./data`。如果不识别这种"未初始化的
+# 默认占位配置"，幂等逻辑会保留它，导致面板读到错误的相对路径数据库（cwd 下的
+# /app/data/daidai.db），新建空 DB，旧数据（/app/Dumb-Panel/daidai.db）找不到，
+# 表现为"面板刚装好一样的初始化界面"。
+#
+# 修复：判断"文件不存在"或"内容仍是镜像默认占位（含 ./data/ 相对路径）"才重写。
+# 用户已经定制过的配置（用绝对路径或别的 data dir）不会被误覆盖。
 build_cors_origins_yaml() {
   # CORS_ORIGINS 支持逗号/换行/空格分隔，例如：
   #   CORS_ORIGINS=https://nas.example.com,http://192.168.1.10:5700
@@ -139,8 +148,32 @@ build_cors_origins_yaml() {
   done
 }
 
+config_looks_like_image_default() {
+  # 判断 config.yaml 是否仍是 server/config.yaml 那一份"未初始化的占位配置"。
+  # 占位特征：data.dir / database.path 是 ./data/* 相对路径。任何用户实际跑过的
+  # 容器都被 entrypoint 改写成 ${DATA_DIR}/... 绝对路径，所以这两条特征不会误伤。
+  [ -f "$1" ] || return 1
+  if grep -Eq '^[[:space:]]*path:[[:space:]]*\./data/daidai\.db' "$1" 2>/dev/null; then
+    return 0
+  fi
+  if grep -Eq '^[[:space:]]*dir:[[:space:]]*\./data[[:space:]]*$' "$1" 2>/dev/null; then
+    return 0
+  fi
+  return 1
+}
+
+NEEDS_REGENERATE=0
 if [ ! -f "${APP_CONFIG_FILE}" ]; then
+  NEEDS_REGENERATE=1
   log "首次启动，生成默认配置：${APP_CONFIG_FILE}"
+elif config_looks_like_image_default "${APP_CONFIG_FILE}"; then
+  NEEDS_REGENERATE=1
+  log "检测到 ${APP_CONFIG_FILE} 仍是镜像默认占位（./data/ 相对路径），重写为绝对路径以恢复数据访问"
+else
+  log "检测到已有配置：${APP_CONFIG_FILE}，跳过覆盖（保留用户自定义）"
+fi
+
+if [ "${NEEDS_REGENERATE}" = "1" ]; then
   CORS_BLOCK=$(build_cors_origins_yaml)
   cat > "${APP_CONFIG_FILE}" <<YAML
 server:
@@ -164,8 +197,6 @@ cors:
   origins:
 ${CORS_BLOCK}
 YAML
-else
-  log "检测到已有配置：${APP_CONFIG_FILE}，跳过覆盖（保留用户自定义）"
 fi
 
 # --- 自定义 ENTRYPOINT 透传 -------------------------------------------------
