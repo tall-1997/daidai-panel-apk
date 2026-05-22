@@ -149,7 +149,10 @@ func writeServerPIDFile(dataDir string) func() {
 }
 
 func main() {
-	cfg, err := config.Load("config.yaml")
+	// 用 ResolveConfigPath 而不是硬编码 "config.yaml"：
+	// 二进制部署若 cwd ≠ exe 目录（Windows 双击、用户 cd 到其他目录后绝对路径启动、
+	// systemd WorkingDirectory 漏配等场景），硬编码相对路径会找不到 config 直接 fatal。
+	cfg, err := config.Load(appboot.ResolveConfigPath())
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}

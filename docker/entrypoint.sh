@@ -118,17 +118,22 @@ if [ -n "${NGINX_CONF_PATH}" ] && [ -f "${NGINX_CONF_PATH}" ]; then
 fi
 
 # --- config.yaml 幂等生成 --------------------------------------------------
-# 历史背景：v2.2.5 及更早的 entrypoint 每次启动都会用 heredoc 覆盖 config.yaml，
-# 导致用户在面板里改过的 CORS / 信任代理 / JWT 过期时间等被强制丢失。
+# 历史背景：
+#   v2.2.5 及更早：每次启动 cat 覆盖 config.yaml，用户在面板里改过的 CORS /
+#     信任代理 / JWT 过期时间等会被强制丢失。
+#   v2.2.6：改成"幂等"——文件存在就不动。但 Dockerfile 把 server/config.yaml
+#     里的 `path: ./data/daidai.db` 这种相对路径占位 COPY 到了 /app/config.yaml，
+#     幂等逻辑保留了占位，daidai-server 按 cwd 解析得到 /app/data/daidai.db，
+#     新建空库，旧数据（/app/Dumb-Panel/daidai.db）找不到 → "面板像刚装好"。
+#   v2.2.7：用硬编码字符串 `./data/daidai.db` / `dir: ./data` 识别"占位"。
+#     用户改过 config 但 path 仍是任意相对路径的情形仍会漏检。
 #
-# v2.2.6 改成幂等，但镜像内置的 /app/config.yaml（Dockerfile COPY server/config.yaml
-# 进去的）用的是相对路径 `./data/daidai.db`、`./data`。如果不识别这种"未初始化的
-# 默认占位配置"，幂等逻辑会保留它，导致面板读到错误的相对路径数据库（cwd 下的
-# /app/data/daidai.db），新建空 DB，旧数据（/app/Dumb-Panel/daidai.db）找不到，
-# 表现为"面板刚装好一样的初始化界面"。
-#
-# 修复：判断"文件不存在"或"内容仍是镜像默认占位（含 ./data/ 相对路径）"才重写。
-# 用户已经定制过的配置（用绝对路径或别的 data dir）不会被误覆盖。
+# v2.2.9 修复策略（与代码层 cfg.Database.Path 也转绝对路径配合）：
+#   只要 database.path 或 data.dir 不是绝对路径，就视为"必须重写"。占位形态、
+#   用户笔误的相对路径、其他相对路径变体一并被纠正成 ${DATA_DIR}/... 绝对路径。
+#   用户用绝对路径 (含自定义 data dir) 的不会被误覆盖。
+#   重写后再扫一遍已知的历史 db 位置，发现非空 db 但与当前 DATA_DIR 不一致就
+#   打印 WARN，把恢复命令直接喂给用户，避免极端场景下还要人肉排查路径。
 build_cors_origins_yaml() {
   # CORS_ORIGINS 支持逗号/换行/空格分隔，例如：
   #   CORS_ORIGINS=https://nas.example.com,http://192.168.1.10:5700
@@ -148,27 +153,111 @@ build_cors_origins_yaml() {
   done
 }
 
-config_looks_like_image_default() {
-  # 判断 config.yaml 是否仍是 server/config.yaml 那一份"未初始化的占位配置"。
-  # 占位特征：data.dir / database.path 是 ./data/* 相对路径。任何用户实际跑过的
-  # 容器都被 entrypoint 改写成 ${DATA_DIR}/... 绝对路径，所以这两条特征不会误伤。
-  [ -f "$1" ] || return 1
-  if grep -Eq '^[[:space:]]*path:[[:space:]]*\./data/daidai\.db' "$1" 2>/dev/null; then
-    return 0
-  fi
-  if grep -Eq '^[[:space:]]*dir:[[:space:]]*\./data[[:space:]]*$' "$1" 2>/dev/null; then
-    return 0
-  fi
+extract_yaml_scalar() {
+  # 取顶层 database.path / data.dir 的字面值。awk 比 grep+sed 更稳，能容忍前后空白。
+  # 参数：$1=文件 $2=key（path / dir）
+  awk -v key="$2" '
+    $0 ~ "^[[:space:]]*" key "[[:space:]]*:" {
+      sub("^[[:space:]]*" key "[[:space:]]*:[[:space:]]*", "", $0)
+      sub("[[:space:]]+#.*$", "", $0)
+      sub("[[:space:]]+$", "", $0)
+      gsub(/^["\047]|["\047]$/, "", $0)
+      print $0
+      exit
+    }
+  ' "$1" 2>/dev/null
+}
+
+config_needs_rewrite() {
+  # 文件缺失 → 必须生成
+  [ -f "$1" ] || return 0
+  db_path=$(extract_yaml_scalar "$1" path)
+  data_dir=$(extract_yaml_scalar "$1" dir)
+  # 任何一项为空或不是绝对路径就视为"未初始化"，需要重写
+  case "${db_path}" in
+    /*) ;;
+    *) return 0 ;;
+  esac
+  case "${data_dir}" in
+    /*) ;;
+    *) return 0 ;;
+  esac
   return 1
+}
+
+scan_legacy_db_locations() {
+  # v2.2.6 受害用户的数据可能残留在两类位置：
+  #   1) /app/data/daidai.db —— v2.2.6 错位生成的空库/半库
+  #   2) 任意自定义挂载点下的旧库 —— 用户用 `-v /host/x:/data` + DATA_DIR=/data
+  #      或者类似 /config /opt/daidai /share/... 的 NAS 习惯挂载点。
+  #
+  # 第一阶段：扫已知常见挂载点；第二阶段：浅 find 兜底覆盖任意自定义挂载点。
+  # 用临时文件汇总而不是 shell 变量——pipe to while 在 POSIX sh 里跑在子 shell，
+  # 父 shell 拿不到变量修改。
+  current="${DATA_DIR}/daidai.db"
+  tmp_scanned=$(mktemp 2>/dev/null || echo /tmp/.daidai-scan-$$)
+  : > "${tmp_scanned}"
+
+  consider_candidate() {
+    candidate=$1
+    [ "${candidate}" = "${current}" ] && return 0
+    [ -s "${candidate}" ] || return 0
+    grep -Fxq "${candidate}" "${tmp_scanned}" 2>/dev/null && return 0
+    printf '%s\n' "${candidate}" >> "${tmp_scanned}"
+  }
+
+  # 第一阶段：已知常见挂载点
+  for candidate in \
+      /app/data/daidai.db \
+      /app/Dumb-Panel/daidai.db \
+      /data/daidai.db \
+      /config/daidai.db \
+      /opt/daidai/daidai.db \
+      /app/daidai.db; do
+    consider_candidate "${candidate}"
+  done
+
+  # 第二阶段：浅扫描兜底（深度 4 平衡性能与覆盖面）。跳过系统目录避免噪音。
+  if command -v find >/dev/null 2>&1; then
+    find / -maxdepth 4 -name 'daidai.db' -type f \
+      -not -path '/proc/*' -not -path '/sys/*' -not -path '/tmp/*' \
+      -not -path '/dev/*' -not -path '/run/*' -not -path '/var/cache/*' \
+      2>/dev/null | while IFS= read -r found_path; do
+      consider_candidate "${found_path}"
+    done
+  fi
+
+  # 汇总输出
+  if [ -s "${tmp_scanned}" ]; then
+    log "================================================================"
+    log "检测到历史数据库残留（当前配置使用：${current}）："
+    while IFS= read -r p; do
+      size=$(stat -c%s "${p}" 2>/dev/null || echo '?')
+      mtime=$(date -r "${p}" '+%F %T' 2>/dev/null || echo '?')
+      log "  ${p}  (${size} 字节, 修改时间 ${mtime})"
+    done < "${tmp_scanned}"
+    log ""
+    log "如其中某个是你的真实旧数据（v2.2.6 升级时被错位创建），执行恢复："
+    log "  1) 选定要恢复的源路径 SRC（推荐挑文件最大、修改时间最新的）"
+    log "  2) docker exec <容器名> sh -c \"cp -a SRC ${current}; \\"
+    log "       cp -a SRC-shm ${current}-shm 2>/dev/null; \\"
+    log "       cp -a SRC-wal ${current}-wal 2>/dev/null\""
+    log "  3) docker restart <容器名>"
+    log ""
+    log "⚠️ 若残留只是 v2.2.6 错位生成的几 KB 空库，可忽略——直接用当前数据目录即可。"
+    log "================================================================"
+  fi
+
+  rm -f "${tmp_scanned}" 2>/dev/null || true
 }
 
 NEEDS_REGENERATE=0
 if [ ! -f "${APP_CONFIG_FILE}" ]; then
   NEEDS_REGENERATE=1
   log "首次启动，生成默认配置：${APP_CONFIG_FILE}"
-elif config_looks_like_image_default "${APP_CONFIG_FILE}"; then
+elif config_needs_rewrite "${APP_CONFIG_FILE}"; then
   NEEDS_REGENERATE=1
-  log "检测到 ${APP_CONFIG_FILE} 仍是镜像默认占位（./data/ 相对路径），重写为绝对路径以恢复数据访问"
+  log "检测到 ${APP_CONFIG_FILE} 含相对路径（database.path / data.dir 未指向绝对位置），重写为绝对路径以恢复数据访问"
 else
   log "检测到已有配置：${APP_CONFIG_FILE}，跳过覆盖（保留用户自定义）"
 fi
@@ -198,6 +287,8 @@ cors:
 ${CORS_BLOCK}
 YAML
 fi
+
+scan_legacy_db_locations
 
 # --- 自定义 ENTRYPOINT 透传 -------------------------------------------------
 if [ $# -gt 0 ]; then

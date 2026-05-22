@@ -3,6 +3,7 @@ package config
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -82,19 +83,34 @@ func Load(path string) (*Config, error) {
 		cfg.JWT.RefreshTokenExpire = 1440 * time.Hour
 	}
 
-	cfg.Data.Dir = resolveAbsoluteDataPath(cfg.Data.Dir)
-	cfg.Data.ScriptsDir = resolveAbsoluteDataPath(cfg.Data.ScriptsDir)
-	cfg.Data.LogDir = resolveAbsoluteDataPath(cfg.Data.LogDir)
+	// 路径解析锚点：以 config.yaml 所在目录为基准，而不是 cwd。
+	// cwd 在 Docker WORKDIR / systemd WorkingDirectory / Windows 双击启动 /
+	// 用户从其他目录拉起二进制等场景下都不稳定，会导致相对路径里的 sqlite
+	// 数据库被建到错误位置（v2.2.5 → v2.2.6 升级后"数据丢失"事故的根因）。
+	// 以 config.yaml 所在目录为锚则始终稳定，且符合"路径相对 config 文件"的直觉。
+	configDir, err := filepath.Abs(filepath.Dir(path))
+	if err != nil || configDir == "" {
+		configDir, _ = os.Getwd()
+	}
+
+	cfg.Data.Dir = resolveDataPath(configDir, cfg.Data.Dir)
+	cfg.Data.ScriptsDir = resolveDataPath(configDir, cfg.Data.ScriptsDir)
+	cfg.Data.LogDir = resolveDataPath(configDir, cfg.Data.LogDir)
+	// Database.Path 必须一并解析。v2.2.6 引入 Data.* 的相对→绝对转换时漏了
+	// 这一项，导致 sqlite 仍按 cwd 解析相对路径，是数据丢失事故的代码层根因。
+	cfg.Database.Path = resolveDataPath(configDir, cfg.Database.Path)
 
 	os.MkdirAll(cfg.Data.Dir, 0755)
 	os.MkdirAll(cfg.Data.ScriptsDir, 0755)
 	os.MkdirAll(cfg.Data.LogDir, 0755)
 
+	log.Printf("config loaded: path=%s db=%s data_dir=%s", path, cfg.Database.Path, cfg.Data.Dir)
+
 	C = cfg
 	return cfg, nil
 }
 
-func resolveAbsoluteDataPath(raw string) string {
+func resolveDataPath(baseDir, raw string) string {
 	trimmed := filepath.Clean(strings.TrimSpace(raw))
 	if trimmed == "" || trimmed == "." {
 		return trimmed
@@ -102,11 +118,14 @@ func resolveAbsoluteDataPath(raw string) string {
 	if filepath.IsAbs(trimmed) {
 		return trimmed
 	}
-	abs, err := filepath.Abs(trimmed)
-	if err != nil {
-		return trimmed
+	if baseDir == "" {
+		abs, err := filepath.Abs(trimmed)
+		if err != nil {
+			return trimmed
+		}
+		return abs
 	}
-	return abs
+	return filepath.Clean(filepath.Join(baseDir, trimmed))
 }
 
 func loadOrGenerateSecret(dataDir string) string {

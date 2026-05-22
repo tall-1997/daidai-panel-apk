@@ -3,6 +3,7 @@ package appboot
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"daidai-panel/config"
 	"daidai-panel/database"
@@ -10,12 +11,21 @@ import (
 	"daidai-panel/model"
 )
 
+// ResolveConfigPath 查找 config.yaml，覆盖 Docker / 二进制 / Windows 双击 / cwd 漂移等场景。
+// 顺序：
+//  1. DAIDAI_CONFIG 环境变量
+//  2. /app/config.yaml（Docker 镜像固定位置）
+//  3. 当前可执行文件同目录（Windows 双击 / 二进制从其他 cwd 启动也能找到）
+//  4. cwd 下的 config.yaml（兼容历史行为）
 func ResolveConfigPath() string {
 	candidates := []string{
 		os.Getenv("DAIDAI_CONFIG"),
 		"/app/config.yaml",
-		"config.yaml",
 	}
+	if exePath, err := os.Executable(); err == nil {
+		candidates = append(candidates, filepath.Join(filepath.Dir(exePath), "config.yaml"))
+	}
+	candidates = append(candidates, "config.yaml")
 
 	for _, candidate := range candidates {
 		if candidate == "" {
