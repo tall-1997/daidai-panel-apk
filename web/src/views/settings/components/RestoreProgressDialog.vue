@@ -49,6 +49,7 @@ const restoreSelection = computed<BackupSelection>(() => ({
   logs: Boolean(props.selection?.logs),
   scripts: Boolean(props.selection?.scripts),
   dependencies: Boolean(props.selection?.dependencies),
+  task_views: Boolean(props.selection?.task_views),
 }))
 
 const sourceLabel = computed(() => {
