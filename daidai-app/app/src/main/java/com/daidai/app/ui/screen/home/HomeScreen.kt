@@ -23,6 +23,7 @@ import com.daidai.app.ui.screen.env.EnvViewModel
 import com.daidai.app.ui.screen.log.LogViewModel
 import com.daidai.app.ui.screen.script.ScriptViewModel
 import com.daidai.app.ui.screen.system.SystemViewModel
+import com.daidai.app.ui.screen.login.ServerAddressDialog
 
 sealed class HomeTab(val title: String, val icon: ImageVector) {
     object Tasks : HomeTab("任务", Icons.Default.List)
@@ -665,16 +666,20 @@ fun LogsContent(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsContent(
     onLogout: () -> Unit = {},
-    viewModel: SystemViewModel = hiltViewModel()
+    viewModel: SystemViewModel = hiltViewModel(),
+    serverConfigViewModel: ServerConfigViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val serverConfigState by serverConfigViewModel.uiState.collectAsStateWithLifecycle()
     var showSystemInfo by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     var showHealthCheck by remember { mutableStateOf(false) }
     var showPanelLog by remember { mutableStateOf(false) }
+    var showServerDialog by remember { mutableStateOf(false) }
     
     Column(
         modifier = Modifier
@@ -754,6 +759,74 @@ fun SettingsContent(
                     }
                 }
             }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // 服务器地址卡片
+        Card(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "服务器连接",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                OutlinedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { showServerDialog = true }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "服务器地址",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = serverConfigState.serverUrl,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "修改服务器",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+        
+        // 服务器地址选择对话框
+        if (showServerDialog) {
+            ServerAddressDialog(
+                currentUrl = serverConfigState.serverUrl,
+                presetServers = serverConfigState.presetServers,
+                historyServers = serverConfigState.serverHistory,
+                onDismiss = { showServerDialog = false },
+                onSelect = { url ->
+                    serverConfigViewModel.updateServerUrl(url)
+                    showServerDialog = false
+                },
+                onDeleteHistory = { url ->
+                    serverConfigViewModel.removeServerFromHistory(url)
+                },
+                onClearHistory = {
+                    serverConfigViewModel.clearServerHistory()
+                }
+            )
         }
         
         Spacer(modifier = Modifier.height(16.dp))

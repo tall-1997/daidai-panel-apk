@@ -3,6 +3,7 @@ package com.daidai.app;
 import com.daidai.app.di.NetworkModule;
 import com.daidai.app.ui.screen.dependency.DependencyViewModel_HiltModules;
 import com.daidai.app.ui.screen.env.EnvViewModel_HiltModules;
+import com.daidai.app.ui.screen.home.ServerConfigViewModel_HiltModules;
 import com.daidai.app.ui.screen.home.TaskViewModel_HiltModules;
 import com.daidai.app.ui.screen.log.LogViewModel_HiltModules;
 import com.daidai.app.ui.screen.login.LoginViewModel_HiltModules;
@@ -157,6 +158,7 @@ public final class DaidaiApplication_HiltComponents {
           LogViewModel_HiltModules.KeyModule.class,
           LoginViewModel_HiltModules.KeyModule.class,
           ScriptViewModel_HiltModules.KeyModule.class,
+          ServerConfigViewModel_HiltModules.KeyModule.class,
           SystemViewModel_HiltModules.KeyModule.class,
           TaskViewModel_HiltModules.KeyModule.class
       }
@@ -200,6 +202,7 @@ public final class DaidaiApplication_HiltComponents {
           LogViewModel_HiltModules.BindsModule.class,
           LoginViewModel_HiltModules.BindsModule.class,
           ScriptViewModel_HiltModules.BindsModule.class,
+          ServerConfigViewModel_HiltModules.BindsModule.class,
           SystemViewModel_HiltModules.BindsModule.class,
           TaskViewModel_HiltModules.BindsModule.class
       }

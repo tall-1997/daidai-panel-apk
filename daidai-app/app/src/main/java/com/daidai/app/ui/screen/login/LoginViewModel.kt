@@ -40,7 +40,27 @@ class LoginViewModel @Inject constructor(
         get() = serverConfig.rememberMe
 
     fun updateServerUrl(url: String) {
-        serverConfig.serverUrl = url
+        serverConfig.serverUrl = url.trimEnd('/')
+    }
+
+    fun addServerToHistory(url: String) {
+        serverConfig.addServerToHistory(url)
+    }
+
+    fun removeServerFromHistory(url: String) {
+        serverConfig.removeServerFromHistory(url)
+    }
+
+    fun clearServerHistory() {
+        serverConfig.clearServerHistory()
+    }
+
+    fun getPresetServers(): List<String> {
+        return serverConfig.getPresetServers()
+    }
+
+    fun getServerHistoryList(): List<String> {
+        return serverConfig.getServerHistoryList()
     }
 
     fun login(username: String, password: String, rememberMe: Boolean = false) {
