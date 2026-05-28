@@ -2,6 +2,7 @@ package com.daidai.app.ui.screen.login
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.daidai.app.data.local.ServerConfig
 import com.daidai.app.data.remote.TokenManager
 import com.daidai.app.data.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -20,14 +21,34 @@ data class LoginUiState(
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val tokenManager: TokenManager
+    private val tokenManager: TokenManager,
+    private val serverConfig: ServerConfig
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(LoginUiState())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
 
-    fun login(username: String, password: String) {
+    val serverUrl: String
+        get() = serverConfig.serverUrl
+    
+    val savedUsername: String
+        get() = serverConfig.username
+    
+    val savedPassword: String
+        get() = serverConfig.password
+    
+    val savedRememberMe: Boolean
+        get() = serverConfig.rememberMe
+
+    fun updateServerUrl(url: String) {
+        serverConfig.serverUrl = url
+    }
+
+    fun login(username: String, password: String, rememberMe: Boolean = false) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            
+            // 保存登录信息
+            serverConfig.saveLoginInfo(username, password, rememberMe)
             
             authRepository.login(username, password)
                 .onSuccess { loginResponse ->

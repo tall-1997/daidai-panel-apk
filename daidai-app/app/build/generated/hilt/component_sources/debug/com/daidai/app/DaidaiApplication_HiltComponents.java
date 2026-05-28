@@ -1,8 +1,11 @@
 package com.daidai.app;
 
 import com.daidai.app.di.NetworkModule;
+import com.daidai.app.ui.screen.env.EnvViewModel_HiltModules;
 import com.daidai.app.ui.screen.home.TaskViewModel_HiltModules;
+import com.daidai.app.ui.screen.log.LogViewModel_HiltModules;
 import com.daidai.app.ui.screen.login.LoginViewModel_HiltModules;
+import com.daidai.app.ui.screen.script.ScriptViewModel_HiltModules;
 import dagger.Binds;
 import dagger.Component;
 import dagger.Module;
@@ -146,8 +149,11 @@ public final class DaidaiApplication_HiltComponents {
       modules = {
           ActivityCBuilderModule.class,
           ViewModelCBuilderModule.class,
+          EnvViewModel_HiltModules.KeyModule.class,
           HiltWrapper_ActivityRetainedComponentManager_LifecycleModule.class,
+          LogViewModel_HiltModules.KeyModule.class,
           LoginViewModel_HiltModules.KeyModule.class,
+          ScriptViewModel_HiltModules.KeyModule.class,
           TaskViewModel_HiltModules.KeyModule.class
       }
   )
@@ -184,8 +190,11 @@ public final class DaidaiApplication_HiltComponents {
 
   @Subcomponent(
       modules = {
+          EnvViewModel_HiltModules.BindsModule.class,
           HiltWrapper_HiltViewModelFactory_ViewModelModule.class,
+          LogViewModel_HiltModules.BindsModule.class,
           LoginViewModel_HiltModules.BindsModule.class,
+          ScriptViewModel_HiltModules.BindsModule.class,
           TaskViewModel_HiltModules.BindsModule.class
       }
   )

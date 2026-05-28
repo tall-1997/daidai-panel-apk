@@ -14,6 +14,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.daidai.app.data.remote.model.Task
+import com.daidai.app.ui.screen.env.EnvViewModel
+import com.daidai.app.ui.screen.log.LogViewModel
+import com.daidai.app.ui.screen.script.ScriptViewModel
 
 sealed class HomeTab(val title: String, val icon: ImageVector) {
     object Tasks : HomeTab("任务", Icons.Default.List)
@@ -138,34 +141,356 @@ fun TasksContent(
 }
 
 @Composable
-fun EnvironmentsContent() {
-    // TODO: 实现环境变量列表
+fun EnvironmentsContent(
+    viewModel: EnvViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    
     Box(modifier = Modifier.fillMaxSize()) {
-        Text("环境变量", modifier = Modifier.padding(16.dp))
+        if (uiState.isLoading && uiState.envs.isEmpty()) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center)
+            )
+        } else if (uiState.error != null && uiState.envs.isEmpty()) {
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = uiState.error ?: "未知错误",
+                    color = MaterialTheme.colorScheme.error
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = { viewModel.loadEnvs(refresh = true) }) {
+                    Text("重试")
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(uiState.envs) { env ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = env.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Switch(
+                                    checked = env.isEnabled,
+                                    onCheckedChange = { /* TODO: 切换启用状态 */ }
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = env.value,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            env.remark?.let { remark ->
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = remark,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                if (uiState.hasMore) {
+                    item {
+                        LaunchedEffect(Unit) {
+                            viewModel.loadMore()
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
-fun ScriptsContent() {
-    // TODO: 实现脚本管理
+fun ScriptsContent(
+    viewModel: ScriptViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    
     Box(modifier = Modifier.fillMaxSize()) {
-        Text("脚本管理", modifier = Modifier.padding(16.dp))
+        if (uiState.isLoading && uiState.scripts.isEmpty()) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center)
+            )
+        } else if (uiState.error != null && uiState.scripts.isEmpty()) {
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = uiState.error ?: "未知错误",
+                    color = MaterialTheme.colorScheme.error
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = { viewModel.loadScripts() }) {
+                    Text("重试")
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(uiState.scripts) { script ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (script.isDir) Icons.Default.Folder else Icons.Default.Code,
+                                contentDescription = null,
+                                modifier = Modifier.size(40.dp),
+                                tint = if (script.isDir) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = script.name,
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Text(
+                                    text = script.path,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (!script.isDir) {
+                                Text(
+                                    text = formatFileSize(script.size),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fun formatFileSize(bytes: Long): String {
+    return when {
+        bytes < 1024 -> "$bytes B"
+        bytes < 1024 * 1024 -> "${bytes / 1024} KB"
+        bytes < 1024 * 1024 * 1024 -> "${bytes / (1024 * 1024)} MB"
+        else -> "${bytes / (1024 * 1024 * 1024)} GB"
     }
 }
 
 @Composable
-fun LogsContent() {
-    // TODO: 实现日志查看
+fun LogsContent(
+    viewModel: LogViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    
     Box(modifier = Modifier.fillMaxSize()) {
-        Text("执行日志", modifier = Modifier.padding(16.dp))
+        if (uiState.isLoading && uiState.logs.isEmpty()) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center)
+            )
+        } else if (uiState.error != null && uiState.logs.isEmpty()) {
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = uiState.error ?: "未知错误",
+                    color = MaterialTheme.colorScheme.error
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = { viewModel.loadLogs(refresh = true) }) {
+                    Text("重试")
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(uiState.logs) { log ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = log.taskName,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Surface(
+                                    shape = MaterialTheme.shapes.small,
+                                    color = if (log.status == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                ) {
+                                    Text(
+                                        text = if (log.status == 0) "成功" else "失败",
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "开始时间: ${log.startedAt}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            log.finishedAt?.let { finishedAt ->
+                                Text(
+                                    text = "结束时间: $finishedAt",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            log.duration?.let { duration ->
+                                Text(
+                                    text = "耗时: ${duration}ms",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            log.output?.let { output ->
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = output,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 3,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                if (uiState.hasMore) {
+                    item {
+                        LaunchedEffect(Unit) {
+                            viewModel.loadMore()
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
 fun SettingsContent() {
-    // TODO: 实现设置页面
-    Box(modifier = Modifier.fillMaxSize()) {
-        Text("系统设置", modifier = Modifier.padding(16.dp))
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "系统设置",
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        Card(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                SettingItem(
+                    icon = Icons.Default.Info,
+                    title = "系统信息",
+                    subtitle = "查看系统版本和状态"
+                )
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                SettingItem(
+                    icon = Icons.Default.Update,
+                    title = "系统更新",
+                    subtitle = "检查并更新系统"
+                )
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                SettingItem(
+                    icon = Icons.Default.Backup,
+                    title = "备份恢复",
+                    subtitle = "备份和恢复系统数据"
+                )
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                SettingItem(
+                    icon = Icons.Default.Security,
+                    title = "安全设置",
+                    subtitle = "密码修改和安全配置"
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Icon(
+            Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

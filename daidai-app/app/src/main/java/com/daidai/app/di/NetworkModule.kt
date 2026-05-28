@@ -1,5 +1,6 @@
 package com.daidai.app.di
 
+import com.daidai.app.data.local.ServerConfig
 import com.daidai.app.data.remote.ApiService
 import com.daidai.app.data.remote.AuthInterceptor
 import com.daidai.app.data.remote.TokenManager
@@ -37,9 +38,10 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+    fun provideRetrofit(okHttpClient: OkHttpClient, serverConfig: ServerConfig): Retrofit {
+        val baseUrl = serverConfig.serverUrl.trimEnd('/') + "/"
         return Retrofit.Builder()
-            .baseUrl("http://localhost:5700/") // 默认地址，用户可以在设置中修改
+            .baseUrl(baseUrl)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
