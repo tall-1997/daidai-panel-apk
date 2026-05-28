@@ -189,11 +189,23 @@ fun TaskItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = task.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f)
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = task.name,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = task.statusText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = when (task.status) {
+                            Task.STATUS_RUNNING -> MaterialTheme.colorScheme.primary
+                            Task.STATUS_ENABLED -> MaterialTheme.colorScheme.tertiary
+                            Task.STATUS_QUEUED -> MaterialTheme.colorScheme.secondary
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
                 
                 Switch(
                     checked = task.isEnabled,
@@ -225,11 +237,14 @@ fun TaskItem(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
-                IconButton(onClick = onRun) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = "执行")
-                }
-                IconButton(onClick = onStop) {
-                    Icon(Icons.Default.Stop, contentDescription = "停止")
+                if (task.isRunning) {
+                    IconButton(onClick = onStop) {
+                        Icon(Icons.Default.Stop, contentDescription = "停止")
+                    }
+                } else {
+                    IconButton(onClick = onRun) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "执行")
+                    }
                 }
                 IconButton(onClick = onDelete) {
                     Icon(Icons.Default.Delete, contentDescription = "删除")

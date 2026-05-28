@@ -579,7 +579,7 @@ public final class DaggerDaidaiApplication_HiltComponents_SingletonC {
     }
 
     @Override
-    public void injectDaidaiApplication(DaidaiApplication arg0) {
+    public void injectDaidaiApplication(DaidaiApplication daidaiApplication) {
     }
 
     @Override
