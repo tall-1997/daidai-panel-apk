@@ -8,12 +8,12 @@
         "source": "/root/.gradle/daemon/8.2/com.daidai.app-main-62:/mipmap-mdpi/ic_launcher_round.png"
     },
     {
-        "merged": "/root/.gradle/daemon/8.2/com.daidai.app-merged_res-60:/mipmap-xhdpi_ic_launcher_round.png.flat",
-        "source": "/root/.gradle/daemon/8.2/com.daidai.app-main-62:/mipmap-xhdpi/ic_launcher_round.png"
-    },
-    {
         "merged": "/root/.gradle/daemon/8.2/com.daidai.app-merged_res-60:/xml_network_security_config.xml.flat",
         "source": "/root/.gradle/daemon/8.2/com.daidai.app-main-62:/xml/network_security_config.xml"
+    },
+    {
+        "merged": "/root/.gradle/daemon/8.2/com.daidai.app-merged_res-60:/mipmap-xhdpi_ic_launcher_round.png.flat",
+        "source": "/root/.gradle/daemon/8.2/com.daidai.app-main-62:/mipmap-xhdpi/ic_launcher_round.png"
     },
     {
         "merged": "com.daidai.app-merged_res-60:/mipmap-hdpi_ic_launcher_round.png.flat",
@@ -88,12 +88,12 @@
         "source": "/root/.gradle/daemon/8.2/com.daidai.app-main-62:/mipmap-xxxhdpi/ic_launcher_round.png"
     },
     {
-        "merged": "/root/.gradle/daemon/8.2/com.daidai.app-merged_res-60:/mipmap-xxhdpi_ic_launcher_round.png.flat",
-        "source": "/root/.gradle/daemon/8.2/com.daidai.app-main-62:/mipmap-xxhdpi/ic_launcher_round.png"
-    },
-    {
         "merged": "/root/.gradle/daemon/8.2/com.daidai.app-merged_res-60:/mipmap-xxxhdpi_ic_launcher.png.flat",
         "source": "/root/.gradle/daemon/8.2/com.daidai.app-main-62:/mipmap-xxxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "/root/.gradle/daemon/8.2/com.daidai.app-merged_res-60:/mipmap-xxhdpi_ic_launcher_round.png.flat",
+        "source": "/root/.gradle/daemon/8.2/com.daidai.app-main-62:/mipmap-xxhdpi/ic_launcher_round.png"
     },
     {
         "merged": "/root/.gradle/daemon/8.2/com.daidai.app-merged_res-60:/xml_data_extraction_rules.xml.flat",

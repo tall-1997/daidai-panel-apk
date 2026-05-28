@@ -38,7 +38,7 @@ class ScriptRepository @Inject constructor(
 
     suspend fun saveScript(request: SaveScriptRequest): Result<Unit> {
         return try {
-            val response = apiService.saveScript(request)
+            val response = apiService.saveScriptContent(request)
             if (response.isSuccessful) {
                 Result.success(Unit)
             } else {
@@ -51,7 +51,8 @@ class ScriptRepository @Inject constructor(
 
     suspend fun uploadScript(file: MultipartBody.Part, path: String? = null): Result<Unit> {
         return try {
-            val response = apiService.uploadScript(file, path)
+            val pathBody = path?.let { okhttp3.RequestBody.create(null, it) }
+            val response = apiService.uploadScript(file, pathBody)
             if (response.isSuccessful) {
                 Result.success(Unit)
             } else {

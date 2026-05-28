@@ -21,20 +21,6 @@ class SystemRepository @Inject constructor(
         }
     }
 
-    suspend fun getHealth(): Result<HealthResponse> {
-        return try {
-            val response = apiService.getHealth()
-            if (response.isSuccessful && response.body() != null) {
-                response.body()?.let { Result.success(it) }
-                    ?: Result.failure(Exception("获取健康状态失败"))
-            } else {
-                Result.failure(Exception("获取健康状态失败"))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
     suspend fun getHealthCheck(): Result<HealthCheckResponse> {
         return try {
             val response = apiService.getHealthCheck()
