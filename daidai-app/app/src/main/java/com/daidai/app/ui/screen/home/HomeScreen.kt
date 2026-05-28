@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -21,6 +22,7 @@ import com.daidai.app.ui.screen.dependency.DependencyViewModel
 import com.daidai.app.ui.screen.env.EnvViewModel
 import com.daidai.app.ui.screen.log.LogViewModel
 import com.daidai.app.ui.screen.script.ScriptViewModel
+import com.daidai.app.ui.screen.system.SystemViewModel
 
 sealed class HomeTab(val title: String, val icon: ImageVector) {
     object Tasks : HomeTab("任务", Icons.Default.List)
@@ -518,14 +520,19 @@ fun LogsContent(
 
 @Composable
 fun SettingsContent(
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    viewModel: SystemViewModel = hiltViewModel()
 ) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showSystemInfo by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
+    var showHealthCheck by remember { mutableStateOf(false) }
+    var showPanelLog by remember { mutableStateOf(false) }
     
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
         Text(
@@ -534,6 +541,146 @@ fun SettingsContent(
             modifier = Modifier.padding(bottom = 16.dp)
         )
         
+        // 系统状态卡片
+        Card(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "系统状态",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                if (uiState.isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                } else {
+                    // 健康检查状态
+                    uiState.healthCheckItems.forEach { item ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                when (item.status) {
+                                    "ok" -> Icons.Default.CheckCircle
+                                    "warning" -> Icons.Default.Warning
+                                    else -> Icons.Default.Error
+                                },
+                                contentDescription = null,
+                                tint = when (item.status) {
+                                    "ok" -> MaterialTheme.colorScheme.primary
+                                    "warning" -> MaterialTheme.colorScheme.tertiary
+                                    else -> MaterialTheme.colorScheme.error
+                                },
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = item.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = item.message ?: item.status,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Button(
+                        onClick = { viewModel.runHealthCheck() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("刷新健康检查")
+                    }
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // 统计信息卡片
+        Card(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "统计信息",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                uiState.statsData?.let { stats ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        StatItem(
+                            title = "任务总数",
+                            value = "${stats.tasks?.total ?: 0}",
+                            icon = Icons.Default.List
+                        )
+                        StatItem(
+                            title = "已启用",
+                            value = "${stats.tasks?.enabled ?: 0}",
+                            icon = Icons.Default.CheckCircle
+                        )
+                        StatItem(
+                            title = "运行中",
+                            value = "${stats.tasks?.running ?: 0}",
+                            icon = Icons.Default.PlayArrow
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        StatItem(
+                            title = "日志总数",
+                            value = "${stats.logs?.total ?: 0}",
+                            icon = Icons.Default.Article
+                        )
+                        StatItem(
+                            title = "成功率",
+                            value = "${String.format("%.1f", stats.logs?.successRate ?: 0.0)}%",
+                            icon = Icons.Default.TrendingUp
+                        )
+                        StatItem(
+                            title = "脚本数",
+                            value = "${stats.scripts?.total ?: 0}",
+                            icon = Icons.Default.Code
+                        )
+                    }
+                } ?: run {
+                    Text(
+                        text = "加载中...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // 设置选项卡片
         Card(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -545,6 +692,23 @@ fun SettingsContent(
                     title = "系统信息",
                     subtitle = "查看系统版本和状态",
                     onClick = { showSystemInfo = true }
+                )
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                SettingItem(
+                    icon = Icons.Default.HealthAndSafety,
+                    title = "健康检查",
+                    subtitle = "查看系统健康状态详情",
+                    onClick = { showHealthCheck = true }
+                )
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                SettingItem(
+                    icon = Icons.Default.Article,
+                    title = "面板日志",
+                    subtitle = "查看系统运行日志",
+                    onClick = { 
+                        viewModel.loadPanelLog()
+                        showPanelLog = true 
+                    }
                 )
                 Divider(modifier = Modifier.padding(vertical = 8.dp))
                 SettingItem(
@@ -609,17 +773,24 @@ fun SettingsContent(
         }
     }
     
+    // 系统信息弹窗
     if (showSystemInfo) {
         AlertDialog(
             onDismissRequest = { showSystemInfo = false },
             title = { Text("系统信息") },
             text = {
                 Column {
-                    Text("App版本: 0.0.1")
-                    Text("构建版本: 1")
-                    Text("最低支持: Android 8.0")
-                    Text("目标版本: Android 14")
-                    Text("技术栈: Kotlin + Jetpack Compose")
+                    uiState.systemInfo?.let { info ->
+                        Text("版本: ${info.version}")
+                        Text("API版本: ${info.apiVersion}")
+                        Text("框架: ${info.framework}")
+                    } ?: run {
+                        Text("App版本: 0.0.1")
+                        Text("构建版本: 1")
+                        Text("最低支持: Android 8.0")
+                        Text("目标版本: Android 14")
+                        Text("技术栈: Kotlin + Jetpack Compose")
+                    }
                 }
             },
             confirmButton = {
@@ -630,6 +801,111 @@ fun SettingsContent(
         )
     }
     
+    // 健康检查详情弹窗
+    if (showHealthCheck) {
+        AlertDialog(
+            onDismissRequest = { showHealthCheck = false },
+            title = { Text("健康检查详情") },
+            text = {
+                Column {
+                    Text(
+                        text = "最后检查时间: ${uiState.lastHealthCheckAt ?: "未检查"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    uiState.healthCheckItems.forEach { item ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        when (item.status) {
+                                            "ok" -> Icons.Default.CheckCircle
+                                            "warning" -> Icons.Default.Warning
+                                            else -> Icons.Default.Error
+                                        },
+                                        contentDescription = null,
+                                        tint = when (item.status) {
+                                            "ok" -> MaterialTheme.colorScheme.primary
+                                            "warning" -> MaterialTheme.colorScheme.tertiary
+                                            else -> MaterialTheme.colorScheme.error
+                                        },
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = item.name,
+                                        style = MaterialTheme.typography.titleSmall
+                                    )
+                                }
+                                if (item.message != null) {
+                                    Text(
+                                        text = item.message,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(start = 24.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showHealthCheck = false }) {
+                    Text("确定")
+                }
+            }
+        )
+    }
+    
+    // 面板日志弹窗
+    if (showPanelLog) {
+        AlertDialog(
+            onDismissRequest = { showPanelLog = false },
+            title = { Text("面板日志") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    if (uiState.panelLogs.isEmpty()) {
+                        Text(
+                            text = "暂无日志",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        uiState.panelLogs.forEach { log ->
+                            Text(
+                                text = log,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPanelLog = false }) {
+                    Text("关闭")
+                }
+            }
+        )
+    }
+    
+    // 关于弹窗
     if (showAbout) {
         AlertDialog(
             onDismissRequest = { showAbout = false },
@@ -651,6 +927,34 @@ fun SettingsContent(
                     Text("确定")
                 }
             }
+        )
+    }
+}
+
+@Composable
+fun StatItem(
+    title: String,
+    value: String,
+    icon: ImageVector
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
