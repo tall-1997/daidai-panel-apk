@@ -1,0 +1,22 @@
+[
+    {
+        "merged": "com.daidai.app-merged_res-60:/xml_backup_rules.xml.flat",
+        "source": "com.daidai.app-main-62:/xml/backup_rules.xml"
+    },
+    {
+        "merged": "com.daidai.app-merged_res-60:/drawable_ic_launcher.xml.flat",
+        "source": "com.daidai.app-main-62:/drawable/ic_launcher.xml"
+    },
+    {
+        "merged": "com.daidai.app-merged_res-60:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.daidai.app-main-62:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.daidai.app-merged_res-60:/xml_data_extraction_rules.xml.flat",
+        "source": "com.daidai.app-main-62:/xml/data_extraction_rules.xml"
+    },
+    {
+        "merged": "com.daidai.app-merged_res-60:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.daidai.app-main-62:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    }
+]

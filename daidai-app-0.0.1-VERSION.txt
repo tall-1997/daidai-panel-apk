@@ -1,0 +1,35 @@
+呆呆面板 Android App v0.0.1
+
+构建时间：2026-05-28 14:06
+
+功能特性：
+- 登录功能：支持用户名密码登录
+- 任务管理：任务列表展示、执行、停止、启用、禁用
+- 环境变量管理：基础框架
+- 脚本管理：基础框架
+- 日志查看：基础框架
+- 系统设置：基础框架
+- Web助手扩展模块：网页Cookie提取框架
+
+技术栈：
+- Kotlin + Jetpack Compose
+- MVVM + Hilt依赖注入
+- Retrofit + OkHttp网络请求
+- Material Design 3 UI组件
+
+版本信息：
+- versionCode: 1
+- versionName: 0.0.1
+- minSdk: 26 (Android 8.0)
+- targetSdk: 34 (Android 14)
+
+构建环境：
+- Gradle 8.2
+- Android SDK 34
+- Kotlin 1.9.20
+- Jetpack Compose 1.5.5
+
+注意事项：
+- 这是debug版本，仅用于开发和测试
+- 需要配置面板地址才能正常使用
+- 部分功能尚未完整实现
