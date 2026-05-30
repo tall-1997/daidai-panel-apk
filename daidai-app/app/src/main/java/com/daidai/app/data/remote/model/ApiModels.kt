@@ -720,6 +720,11 @@ data class CreateDepRequest(
     val names: List<String>
 )
 
+data class InstallDepRequest(
+    val name: String,
+    val type: String
+)
+
 data class DepStatusResponse(
     val data: DepStatus?
 )

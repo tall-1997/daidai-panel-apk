@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier;
 import androidx.compose.ui.graphics.vector.ImageVector;
 import androidx.compose.ui.text.font.FontWeight;
 import androidx.compose.ui.text.input.KeyboardType;
+import com.daidai.app.data.remote.model.Dependency;
 import com.daidai.app.data.remote.model.Env;
 import com.daidai.app.data.remote.model.Task;
 import com.daidai.app.ui.screen.dependency.DependencyViewModel;

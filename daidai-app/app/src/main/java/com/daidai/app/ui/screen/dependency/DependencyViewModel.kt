@@ -3,6 +3,7 @@ package com.daidai.app.ui.screen.dependency
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.daidai.app.data.remote.model.Dependency
+import com.daidai.app.data.remote.model.InstallDepRequest
 import com.daidai.app.data.repository.DependencyRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,7 +16,8 @@ data class DependencyListUiState(
     val isLoading: Boolean = false,
     val dependencies: List<Dependency> = emptyList(),
     val selectedType: String = Dependency.TYPE_NODEJS,
-    val error: String? = null
+    val error: String? = null,
+    val successMessage: String? = null
 )
 
 @HiltViewModel
@@ -56,10 +58,24 @@ class DependencyViewModel @Inject constructor(
         loadDeps(type)
     }
 
+    fun installDep(name: String, type: String) {
+        viewModelScope.launch {
+            dependencyRepository.installDep(InstallDepRequest(name, type))
+                .onSuccess {
+                    _uiState.value = _uiState.value.copy(successMessage = "依赖安装任务已提交")
+                    loadDeps()
+                }
+                .onFailure { exception ->
+                    _uiState.value = _uiState.value.copy(error = exception.message)
+                }
+        }
+    }
+
     fun deleteDep(id: Int) {
         viewModelScope.launch {
             dependencyRepository.deleteDep(id)
                 .onSuccess {
+                    _uiState.value = _uiState.value.copy(successMessage = "依赖删除成功")
                     loadDeps()
                 }
                 .onFailure { exception ->
@@ -72,6 +88,7 @@ class DependencyViewModel @Inject constructor(
         viewModelScope.launch {
             dependencyRepository.reinstallDep(id)
                 .onSuccess {
+                    _uiState.value = _uiState.value.copy(successMessage = "重新安装任务已提交")
                     loadDeps()
                 }
                 .onFailure { exception ->
@@ -80,7 +97,7 @@ class DependencyViewModel @Inject constructor(
         }
     }
 
-    fun clearError() {
-        _uiState.value = _uiState.value.copy(error = null)
+    fun clearMessages() {
+        _uiState.value = _uiState.value.copy(error = null, successMessage = null)
     }
 }

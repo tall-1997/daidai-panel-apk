@@ -19,6 +19,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.daidai.app.data.remote.model.Dependency
 import com.daidai.app.data.remote.model.Env
 import com.daidai.app.data.remote.model.Task
 import com.daidai.app.ui.screen.dependency.DependencyViewModel
@@ -666,11 +667,14 @@ fun EnvDialog(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DependenciesContent(
     viewModel: DependencyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showInstallDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf<Dependency?>(null) }
     
     Column(modifier = Modifier.fillMaxSize()) {
         // 类型选择标签
@@ -737,6 +741,12 @@ fun DependenciesContent(
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = { showInstallDialog = true }) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("安装依赖")
+                    }
                 }
             } else {
                 LazyColumn(
@@ -785,13 +795,158 @@ fun DependenciesContent(
                                         }
                                     )
                                 )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                IconButton(
+                                    onClick = { viewModel.reinstallDep(dep.id) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Refresh,
+                                        contentDescription = "重新安装",
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { showDeleteDialog = dep },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "删除",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
+            
+            // 安装依赖按钮
+            FloatingActionButton(
+                onClick = { showInstallDialog = true },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "安装依赖")
+            }
         }
     }
+    
+    // 安装依赖对话框
+    if (showInstallDialog) {
+        InstallDepDialog(
+            depType = uiState.selectedType,
+            onDismiss = { showInstallDialog = false },
+            onInstall = { name, type ->
+                viewModel.installDep(name, type)
+                showInstallDialog = false
+            }
+        )
+    }
+    
+    // 删除确认对话框
+    showDeleteDialog?.let { dep ->
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = null },
+            title = { Text("确认删除") },
+            text = { Text("确定要删除依赖「${dep.name}」吗？") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteDep(dep.id)
+                        showDeleteDialog = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("删除")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = null }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InstallDepDialog(
+    depType: String,
+    onDismiss: () -> Unit,
+    onInstall: (String, String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var type by remember { mutableStateOf(depType) }
+    var expanded by remember { mutableStateOf(false) }
+    
+    val depTypes = listOf("nodejs", "python", "linux")
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("安装依赖") },
+        text = {
+            Column {
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded }
+                ) {
+                    OutlinedTextField(
+                        value = type,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("依赖类型") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        depTypes.forEach { depType ->
+                            DropdownMenuItem(
+                                text = { Text(depType) },
+                                onClick = {
+                                    type = depType
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("依赖名称") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text("例如: axios, requests, curl") }
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onInstall(name, type) },
+                enabled = name.isNotBlank()
+            ) {
+                Text("安装")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        }
+    )
 }
 
 fun formatFileSize(bytes: Long): String {

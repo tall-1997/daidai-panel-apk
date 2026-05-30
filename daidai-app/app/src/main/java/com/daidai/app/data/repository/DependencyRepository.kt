@@ -60,4 +60,18 @@ class DependencyRepository @Inject constructor(
             Result.failure(e)
         }
     }
+
+    suspend fun installDep(request: InstallDepRequest): Result<DependencyResponse> {
+        return try {
+            val response = apiService.createDep(CreateDepRequest(request.type, listOf(request.name)))
+            if (response.isSuccessful && response.body() != null) {
+                response.body()?.let { Result.success(it) }
+                    ?: Result.failure(Exception("安装依赖失败"))
+            } else {
+                Result.failure(Exception("安装依赖失败"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
