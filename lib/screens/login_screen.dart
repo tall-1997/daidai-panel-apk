@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 
@@ -16,6 +17,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _serverController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  String? _loginError;
+  String? _errorDetail;
 
   @override
   void initState() {
@@ -35,7 +38,11 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _loginError = null;
+      _errorDetail = null;
+    });
 
     try {
       final authService = context.read<AuthService>();
@@ -48,30 +55,87 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (mounted) {
         setState(() => _isLoading = false);
-        
+
         if (success) {
-          // Login success - AuthWrapper will automatically navigate to HomeScreen
-          // because AuthService.isAuthenticated changed and notifyListeners() was called
+          // Login success
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(authService.error ?? '登录失败'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          final error = authService.error ?? '登录失败';
+          setState(() {
+            _loginError = error;
+            _errorDetail = _buildErrorDetail(error);
+          });
         }
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('登录异常: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() {
+          _isLoading = false;
+          _loginError = '登录异常: $e';
+          _errorDetail = _buildErrorDetail('登录异常: $e');
+        });
       }
     }
+  }
+
+  String _buildErrorDetail(String error) {
+    final buffer = StringBuffer();
+    buffer.writeln('=== 登录错误报告 ===');
+    buffer.writeln('时间: ${DateTime.now().toLocal()}');
+    buffer.writeln('服务器: ${_serverController.text.trim()}');
+    buffer.writeln('用户名: ${_usernameController.text.trim()}');
+    buffer.writeln('错误: $error');
+    buffer.writeln('==================');
+    return buffer.toString();
+  }
+
+  void _showErrorReport() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('登录错误报告'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _loginError ?? '未知错误',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: SelectableText(
+                  _errorDetail ?? '',
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('关闭'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: _errorDetail ?? ''));
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('错误报告已复制到剪贴板')),
+              );
+            },
+            icon: const Icon(Icons.copy),
+            label: const Text('复制'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -196,6 +260,25 @@ class _LoginScreenState extends State<LoginScreen> {
                           )
                         : const Text('登录'),
                   ),
+                  // 错误报告按钮
+                  if (_loginError != null) ...[
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: _showErrorReport,
+                      icon: const Icon(Icons.bug_report, color: Colors.red),
+                      label: const Text(
+                        '查看错误报告',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: const BorderSide(color: Colors.red),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
