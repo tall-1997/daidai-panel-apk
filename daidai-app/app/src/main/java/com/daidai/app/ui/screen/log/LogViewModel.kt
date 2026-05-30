@@ -16,6 +16,7 @@ data class LogListUiState(
     val isLoading: Boolean = false,
     val logs: List<TaskLog> = emptyList(),
     val error: String? = null,
+    val successMessage: String? = null,
     val currentPage: Int = 1,
     val hasMore: Boolean = true,
     val selectedLog: LogDetailResponse? = null,
@@ -84,6 +85,19 @@ class LogViewModel @Inject constructor(
         }
     }
 
+    fun deleteLog(logId: Int) {
+        viewModelScope.launch {
+            logRepository.deleteLog(logId)
+                .onSuccess {
+                    _uiState.value = _uiState.value.copy(successMessage = "日志删除成功")
+                    loadLogs(refresh = true)
+                }
+                .onFailure { exception ->
+                    _uiState.value = _uiState.value.copy(error = exception.message)
+                }
+        }
+    }
+
     fun clearSelectedLog() {
         _uiState.value = _uiState.value.copy(selectedLog = null)
     }
@@ -95,7 +109,7 @@ class LogViewModel @Inject constructor(
         loadLogs()
     }
 
-    fun clearError() {
-        _uiState.value = _uiState.value.copy(error = null)
+    fun clearMessages() {
+        _uiState.value = _uiState.value.copy(error = null, successMessage = null)
     }
 }

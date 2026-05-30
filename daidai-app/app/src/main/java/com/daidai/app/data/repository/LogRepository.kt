@@ -38,4 +38,17 @@ class LogRepository @Inject constructor(
             Result.failure(e)
         }
     }
+
+    suspend fun deleteLog(id: Int): Result<Unit> {
+        return try {
+            val response = apiService.deleteLog(id)
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(response.body()?.message ?: "删除日志失败"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

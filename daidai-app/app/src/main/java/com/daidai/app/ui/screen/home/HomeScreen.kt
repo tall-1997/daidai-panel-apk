@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.daidai.app.data.remote.model.Dependency
 import com.daidai.app.data.remote.model.Env
 import com.daidai.app.data.remote.model.Task
+import com.daidai.app.data.remote.model.TaskLog
 import com.daidai.app.ui.screen.dependency.DependencyViewModel
 import com.daidai.app.ui.screen.env.EnvViewModel
 import com.daidai.app.ui.screen.log.LogViewModel
@@ -963,6 +964,7 @@ fun LogsContent(
     viewModel: LogViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showDeleteDialog by remember { mutableStateOf<TaskLog?>(null) }
     
     Box(modifier = Modifier.fillMaxSize()) {
         if (uiState.isLoading && uiState.logs.isEmpty()) {
@@ -1040,6 +1042,25 @@ fun LogsContent(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                IconButton(
+                                    onClick = { showDeleteDialog = log },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "删除",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -1106,6 +1127,33 @@ fun LogsContent(
                 }
             )
         }
+    }
+    
+    // 删除确认对话框
+    showDeleteDialog?.let { log ->
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = null },
+            title = { Text("确认删除") },
+            text = { Text("确定要删除该日志吗？") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteLog(log.id)
+                        showDeleteDialog = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("删除")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = null }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
 

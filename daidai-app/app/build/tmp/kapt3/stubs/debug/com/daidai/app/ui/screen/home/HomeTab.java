@@ -14,6 +14,7 @@ import androidx.compose.ui.text.input.KeyboardType;
 import com.daidai.app.data.remote.model.Dependency;
 import com.daidai.app.data.remote.model.Env;
 import com.daidai.app.data.remote.model.Task;
+import com.daidai.app.data.remote.model.TaskLog;
 import com.daidai.app.ui.screen.dependency.DependencyViewModel;
 import com.daidai.app.ui.screen.env.EnvViewModel;
 import com.daidai.app.ui.screen.log.LogViewModel;
