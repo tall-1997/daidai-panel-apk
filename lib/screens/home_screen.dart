@@ -41,19 +41,19 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
-      _isSidebarExpanded = false; // 点击选项后自动收起侧边栏
+      _isSidebarExpanded = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final authService = context.watch<AuthService>();
-    
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_navigationItems[_selectedIndex].title),
         leading: IconButton(
-          icon: Icon(_isSidebarExpanded ? Icons.menu_open : Icons.menu),
+          icon: const Icon(Icons.menu),
           onPressed: () {
             setState(() {
               _isSidebarExpanded = !_isSidebarExpanded;
@@ -63,15 +63,11 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
-            onPressed: () {
-              // TODO: Implement search
-            },
+            onPressed: () {},
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () {
-              // TODO: Implement refresh
-            },
+            onPressed: () {},
           ),
           PopupMenuButton(
             itemBuilder: (context) => [
@@ -98,115 +94,107 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Row(
+      body: Stack(
         children: [
-          // 侧边栏
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: _isSidebarExpanded ? 200 : 60,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 4,
-                  offset: const Offset(2, 0),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                // 顶部用户信息
-                if (_isSidebarExpanded)
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          child: Text(
-                            (authService.username ?? 'U')[0].toUpperCase(),
-                            style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            authService.username ?? '用户',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                if (!_isSidebarExpanded)
-                  const SizedBox(height: 16),
-                // 导航选项
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: _navigationItems.length,
-                    itemBuilder: (context, index) {
-                      final item = _navigationItems[index];
-                      final isSelected = _selectedIndex == index;
-                      
-                      return InkWell(
-                        onTap: () => _onItemTapped(index),
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: _isSidebarExpanded ? 16 : 0,
-                            vertical: 12,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: _isSidebarExpanded 
-                                ? MainAxisAlignment.start 
-                                : MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                item.icon,
-                                color: isSelected 
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                                size: 24,
-                              ),
-                              if (_isSidebarExpanded) ...[
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    item.title,
-                                    style: TextStyle(
-                                      color: isSelected 
-                                          ? Theme.of(context).colorScheme.primary
-                                          : Theme.of(context).colorScheme.onSurface,
-                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                // 底部展开/收起按钮
-                IconButton(
-                  icon: Icon(_isSidebarExpanded ? Icons.chevron_left : Icons.chevron_right),
-                  onPressed: () {
-                    setState(() {
-                      _isSidebarExpanded = !_isSidebarExpanded;
-                    });
-                  },
-                ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
           // 主内容区域
-          Expanded(
-            child: _getSelectedScreen(),
+          _getSelectedScreen(),
+          // 侧边栏遮罩层
+          if (_isSidebarExpanded)
+            GestureDetector(
+              onTap: () => setState(() => _isSidebarExpanded = false),
+              child: Container(color: Colors.black38),
+            ),
+          // 侧边栏
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 200),
+            left: _isSidebarExpanded ? 0 : -180,
+            top: 0,
+            bottom: 0,
+            width: 180,
+            child: Material(
+              elevation: 8,
+              child: Container(
+                color: Theme.of(context).colorScheme.surface,
+                child: Column(
+                  children: [
+                    // 用户信息
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            child: Text(
+                              (authService.username ?? 'U')[0].toUpperCase(),
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onPrimary,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              authService.username ?? '用户',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    // 导航选项
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        itemCount: _navigationItems.length,
+                        itemBuilder: (context, index) {
+                          final item = _navigationItems[index];
+                          final isSelected = _selectedIndex == index;
+
+                          return InkWell(
+                            onTap: () => _onItemTapped(index),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              color: isSelected
+                                  ? Theme.of(context).colorScheme.primaryContainer
+                                  : null,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    item.icon,
+                                    size: 20,
+                                    color: isSelected
+                                        ? Theme.of(context).colorScheme.primary
+                                        : Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      item.title,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: isSelected
+                                            ? Theme.of(context).colorScheme.primary
+                                            : Theme.of(context).colorScheme.onSurface,
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),

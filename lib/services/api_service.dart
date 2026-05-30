@@ -377,17 +377,40 @@ class ApiService {
 
   // Dependency APIs
   Future<Map<String, dynamic>> getDependencies() async {
-    final response = await get('/dependencies');
+    final response = await get('/deps');
     return jsonDecode(response.body);
   }
 
-  Future<Map<String, dynamic>> installDependency(Map<String, dynamic> dep) async {
-    final response = await post('/dependencies/install', body: dep);
+  Future<Map<String, dynamic>> installDependency(String type, List<String> names) async {
+    final response = await post('/deps', body: {
+      'type': type,
+      'names': names,
+    });
     return jsonDecode(response.body);
   }
 
-  Future<Map<String, dynamic>> uninstallDependency(Map<String, dynamic> dep) async {
-    final response = await post('/dependencies/uninstall', body: dep);
+  Future<Map<String, dynamic>> uninstallDependency(int id) async {
+    final response = await delete('/deps/$id');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> reinstallDependency(int id) async {
+    final response = await put('/deps/$id/reinstall');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> getDepStatus(int id) async {
+    final response = await get('/deps/$id/status');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> batchDeleteDeps(List<int> ids) async {
+    final response = await post('/deps/batch-delete', body: {'ids': ids});
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> batchReinstallDeps(List<int> ids) async {
+    final response = await post('/deps/batch-reinstall', body: {'ids': ids});
     return jsonDecode(response.body);
   }
 

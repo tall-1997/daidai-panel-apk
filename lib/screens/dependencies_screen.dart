@@ -29,7 +29,7 @@ class _DependenciesScreenState extends State<DependenciesScreen> {
     try {
       final authService = context.read<AuthService>();
       final result = await authService.apiService.getDependencies();
-      
+
       if (result['data'] != null) {
         setState(() {
           _dependencies = List<Map<String, dynamic>>.from(result['data'] ?? []);
@@ -46,6 +46,44 @@ class _DependenciesScreenState extends State<DependenciesScreen> {
         _error = '网络错误: $e';
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _deleteDep(int id) async {
+    try {
+      final authService = context.read<AuthService>();
+      await authService.apiService.uninstallDependency(id);
+      _loadDependencies();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('依赖已删除')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('删除失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _reinstallDep(int id) async {
+    try {
+      final authService = context.read<AuthService>();
+      await authService.apiService.reinstallDependency(id);
+      _loadDependencies();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('重新安装中')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('重装失败: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -79,18 +117,11 @@ class _DependenciesScreenState extends State<DependenciesScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Theme.of(context).colorScheme.error,
-            ),
+            Icon(Icons.error_outline, size: 64, color: Theme.of(context).colorScheme.error),
             const SizedBox(height: 16),
             Text(_error!),
             const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _loadDependencies,
-              child: const Text('重试'),
-            ),
+            FilledButton(onPressed: _loadDependencies, child: const Text('重试')),
           ],
         ),
       );
@@ -101,11 +132,7 @@ class _DependenciesScreenState extends State<DependenciesScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.extension,
-              size: 64,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+            Icon(Icons.extension, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
             const SizedBox(height: 16),
             const Text('暂无依赖'),
             const SizedBox(height: 16),
@@ -126,7 +153,11 @@ class _DependenciesScreenState extends State<DependenciesScreen> {
         itemCount: _dependencies.length,
         itemBuilder: (context, index) {
           final dep = _dependencies[index];
-          return _DependencyCard(dep: dep);
+          return _DependencyCard(
+            dep: dep,
+            onDelete: () => _deleteDep(dep['id']),
+            onReinstall: () => _reinstallDep(dep['id']),
+          );
         },
       ),
     );
@@ -188,10 +219,10 @@ class _DependenciesScreenState extends State<DependenciesScreen> {
 
                 try {
                   final authService = context.read<AuthService>();
-                  await authService.apiService.installDependency({
-                    'type': depType,
-                    'name': nameController.text,
-                  });
+                  await authService.apiService.installDependency(
+                    depType,
+                    [nameController.text],
+                  );
                   Navigator.pop(context);
                   _loadDependencies();
                   if (mounted) {
@@ -216,15 +247,20 @@ class _DependenciesScreenState extends State<DependenciesScreen> {
 
 class _DependencyCard extends StatelessWidget {
   final Map<String, dynamic> dep;
+  final VoidCallback onDelete;
+  final VoidCallback onReinstall;
 
-  const _DependencyCard({required this.dep});
+  const _DependencyCard({
+    required this.dep,
+    required this.onDelete,
+    required this.onReinstall,
+  });
 
   @override
   Widget build(BuildContext context) {
     final name = dep['name'] ?? '';
     final type = dep['type'] ?? '';
-    final version = dep['version'] ?? '';
-    final installed = dep['installed'] ?? false;
+    final status = dep['status'] ?? '';
 
     IconData typeIcon;
     switch (type) {
@@ -241,15 +277,55 @@ class _DependencyCard extends StatelessWidget {
         typeIcon = Icons.extension;
     }
 
+    Color statusColor;
+    String statusText;
+    switch (status) {
+      case 'installed':
+        statusColor = Colors.green;
+        statusText = '已安装';
+        break;
+      case 'installing':
+        statusColor = Colors.orange;
+        statusText = '安装中';
+        break;
+      case 'failed':
+        statusColor = Colors.red;
+        statusText = '失败';
+        break;
+      default:
+        statusColor = Colors.grey;
+        statusText = status;
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
         leading: Icon(typeIcon, color: Theme.of(context).colorScheme.primary),
         title: Text(name),
-        subtitle: Text('$type${version.isNotEmpty ? ' v$version' : ''}'),
-        trailing: Icon(
-          installed ? Icons.check_circle : Icons.pending,
-          color: installed ? Colors.green : Colors.orange,
+        subtitle: Text(type),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: statusColor),
+              ),
+              child: Text(statusText, style: TextStyle(color: statusColor, fontSize: 12)),
+            ),
+            PopupMenuButton(
+              itemBuilder: (context) => [
+                const PopupMenuItem(value: 'reinstall', child: Text('重新安装')),
+                const PopupMenuItem(value: 'delete', child: Text('删除', style: TextStyle(color: Colors.red))),
+              ],
+              onSelected: (value) {
+                if (value == 'reinstall') onReinstall();
+                if (value == 'delete') onDelete();
+              },
+            ),
+          ],
         ),
       ),
     );
