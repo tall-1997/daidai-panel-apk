@@ -63,11 +63,34 @@ fun HomeScreen(
     var selectedTab by remember { mutableStateOf<HomeTab>(HomeTab.Tasks) }
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var isSidebarExpanded by remember { mutableStateOf(false) }
+
+    val tabs = listOf(
+        HomeTab.Tasks,
+        HomeTab.Environments,
+        HomeTab.Dependencies,
+        HomeTab.Scripts,
+        HomeTab.Logs,
+        HomeTab.Notifications,
+        HomeTab.System,
+        HomeTab.QuickActions,
+        HomeTab.Stats,
+        HomeTab.Config,
+        HomeTab.Settings
+    )
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("呆呆面板") },
+                navigationIcon = {
+                    IconButton(onClick = { isSidebarExpanded = !isSidebarExpanded }) {
+                        Icon(
+                            if (isSidebarExpanded) Icons.Default.MenuOpen else Icons.Default.Menu,
+                            contentDescription = "菜单"
+                        )
+                    }
+                },
                 actions = {
                     IconButton(onClick = { showSearch = !showSearch }) {
                         Icon(
@@ -83,78 +106,100 @@ fun HomeScreen(
                     }
                 }
             )
-        },
-        bottomBar = {
-            NavigationBar {
-                val tabs = listOf(
-                    HomeTab.Tasks,
-                    HomeTab.Environments,
-                    HomeTab.Dependencies,
-                    HomeTab.Scripts,
-                    HomeTab.Logs,
-                    HomeTab.Notifications,
-                    HomeTab.System,
-                    HomeTab.QuickActions,
-                    HomeTab.Stats,
-                    HomeTab.Config,
-                    HomeTab.Settings
-                )
-                tabs.forEach { tab ->
-                    NavigationBarItem(
-                        icon = { Icon(tab.icon, contentDescription = tab.title) },
-                        label = { Text(tab.title) },
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab }
-                    )
-                }
-            }
         }
     ) { paddingValues ->
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // 搜索框
-            if (showSearch && selectedTab is HomeTab.Tasks) {
-                SearchBar(
-                    query = searchQuery,
-                    onQueryChange = { searchQuery = it },
-                    onSearch = { /* 搜索由onQueryChange触发 */ },
-                    active = false,
-                    onActiveChange = {},
-                    placeholder = { Text("搜索任务名称...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = "清除")
-                            }
-                        }
-                    },
+            // 侧边栏 - 仅在展开时显示
+            if (isSidebarExpanded) {
+                NavigationRail(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {}
+                        .width(160.dp)
+                        .fillMaxHeight()
+                        .background(MaterialTheme.colorScheme.surface),
+                    header = {
+                        // 顶部收起按钮
+                        IconButton(
+                            onClick = { isSidebarExpanded = false },
+                            modifier = Modifier.padding(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.ChevronLeft,
+                                contentDescription = "收起"
+                            )
+                        }
+                    }
+                ) {
+                    // Tab列表
+                    Column(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState())
+                            .padding(vertical = 8.dp)
+                    ) {
+                        tabs.forEach { tab ->
+                            NavigationRailItem(
+                                selected = selectedTab == tab,
+                                onClick = { selectedTab = tab },
+                                icon = { Icon(tab.icon, contentDescription = tab.title) },
+                                label = { Text(tab.title, style = MaterialTheme.typography.labelSmall) },
+                                modifier = Modifier.padding(vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
             }
 
-            // 内容区域
-            Box(modifier = Modifier.fillMaxSize()) {
-                when (selectedTab) {
-                    is HomeTab.Tasks -> TasksContent(
-                        onNavigateToTaskDetail = onNavigateToTaskDetail,
-                        searchQuery = searchQuery
-                    )
-                    is HomeTab.Environments -> EnvironmentsContent()
-                    is HomeTab.Dependencies -> DependenciesContent()
-                    is HomeTab.Scripts -> ScriptsContent()
-                    is HomeTab.Logs -> LogsContent()
-                    is HomeTab.Notifications -> NotificationsContent()
-                    is HomeTab.System -> SystemContent()
-                    is HomeTab.QuickActions -> QuickActionsContent()
-                    is HomeTab.Stats -> StatsContent()
-                    is HomeTab.Config -> ConfigContent()
-                    is HomeTab.Settings -> SettingsContent(onLogout = onLogout)
+            // 主内容区域
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f)
+            ) {
+                // 搜索框
+                if (showSearch && selectedTab is HomeTab.Tasks) {
+                    SearchBar(
+                        query = searchQuery,
+                        onQueryChange = { searchQuery = it },
+                        onSearch = { /* 搜索由onQueryChange触发 */ },
+                        active = false,
+                        onActiveChange = {},
+                        placeholder = { Text("搜索任务名称...") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "清除")
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {}
+                }
+
+                // 内容区域
+                Box(modifier = Modifier.fillMaxSize()) {
+                    when (selectedTab) {
+                        is HomeTab.Tasks -> TasksContent(
+                            onNavigateToTaskDetail = onNavigateToTaskDetail,
+                            searchQuery = searchQuery
+                        )
+                        is HomeTab.Environments -> EnvironmentsContent()
+                        is HomeTab.Dependencies -> DependenciesContent()
+                        is HomeTab.Scripts -> ScriptsContent()
+                        is HomeTab.Logs -> LogsContent()
+                        is HomeTab.Notifications -> NotificationsContent()
+                        is HomeTab.System -> SystemContent()
+                        is HomeTab.QuickActions -> QuickActionsContent()
+                        is HomeTab.Stats -> StatsContent()
+                        is HomeTab.Config -> ConfigContent()
+                        is HomeTab.Settings -> SettingsContent(onLogout = onLogout)
+                    }
                 }
             }
         }
