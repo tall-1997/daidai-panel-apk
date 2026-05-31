@@ -42,7 +42,7 @@ jobs:
       - name: Get version
         id: version
         run: |
-          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk '{print $2}')
+          VERSION=$(grep '^version:' pubspec.yaml | head -1 | awk '{print $2}')
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
       
       - name: Rename APK
@@ -80,7 +80,7 @@ jobs:
       - name: Get version
         id: version
         run: |
-          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk '{print $2}')
+          VERSION=$(grep '^version:' pubspec.yaml | head -1 | awk '{print $2}')
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
       
       - name: Create IPA
@@ -124,7 +124,7 @@ jobs:
       - name: Get version
         id: version
         run: |
-          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk '{print $2}')
+          VERSION=$(grep '^version:' pubspec.yaml | head -1 | awk '{print $2}')
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
       
       - name: Generate Release Notes
