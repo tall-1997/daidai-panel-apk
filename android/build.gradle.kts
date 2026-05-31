@@ -16,19 +16,6 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 
-gradle.beforeProject {
-    plugins.withId("com.android.library") {
-        extensions.configure<com.android.build.api.dsl.LibraryExtension> {
-            compileSdk = 36
-        }
-    }
-    plugins.withId("com.android.application") {
-        extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
-            compileSdk = 36
-        }
-    }
-}
-
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
