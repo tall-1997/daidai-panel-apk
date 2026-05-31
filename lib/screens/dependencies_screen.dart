@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import 'home_screen.dart';
 
 class DependenciesScreen extends StatefulWidget {
   const DependenciesScreen({super.key});
@@ -9,7 +10,7 @@ class DependenciesScreen extends StatefulWidget {
   State<DependenciesScreen> createState() => _DependenciesScreenState();
 }
 
-class _DependenciesScreenState extends State<DependenciesScreen> {
+class _DependenciesScreenState extends State<DependenciesScreen> with RefreshableScreen {
   List<Map<String, dynamic>> _dependencies = [];
   bool _isLoading = true;
   String? _error;
@@ -17,6 +18,11 @@ class _DependenciesScreenState extends State<DependenciesScreen> {
   @override
   void initState() {
     super.initState();
+    _loadDependencies();
+  }
+
+  @override
+  void refresh() {
     _loadDependencies();
   }
 

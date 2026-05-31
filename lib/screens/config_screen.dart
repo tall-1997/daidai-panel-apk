@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/api_service.dart';
+import '../services/auth_service.dart';
+import 'home_screen.dart';
 
 class ConfigScreen extends StatefulWidget {
   const ConfigScreen({super.key});
@@ -9,7 +10,7 @@ class ConfigScreen extends StatefulWidget {
   State<ConfigScreen> createState() => _ConfigScreenState();
 }
 
-class _ConfigScreenState extends State<ConfigScreen> {
+class _ConfigScreenState extends State<ConfigScreen> with RefreshableScreen {
   List<dynamic> _configs = [];
   List<dynamic> _platforms = [];
   List<dynamic> _platformTokens = [];
@@ -22,10 +23,16 @@ class _ConfigScreenState extends State<ConfigScreen> {
     _loadData();
   }
 
+  @override
+  void refresh() {
+    _loadData();
+  }
+
   Future<void> _loadData() async {
     setState(() { _isLoading = true; _message = null; });
     try {
-      final api = context.read<ApiService>();
+      final authService = context.read<AuthService>();
+      final api = authService.apiService;
       final config = await api.getConfig();
       setState(() {
         _configs = config['data'] ?? [];
@@ -38,7 +45,8 @@ class _ConfigScreenState extends State<ConfigScreen> {
 
   Future<void> _updateConfig(String key, String value) async {
     try {
-      final api = context.read<ApiService>();
+      final authService = context.read<AuthService>();
+      final api = authService.apiService;
       await api.updateConfig({key: value});
       setState(() { _message = '配置已更新'; });
       _loadData();

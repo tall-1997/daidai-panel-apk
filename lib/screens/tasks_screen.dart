@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 import '../services/auth_service.dart';
+import 'home_screen.dart';
 
 class TasksScreen extends StatefulWidget {
   const TasksScreen({super.key});
@@ -9,11 +11,12 @@ class TasksScreen extends StatefulWidget {
   State<TasksScreen> createState() => _TasksScreenState();
 }
 
-class _TasksScreenState extends State<TasksScreen> {
+class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
   List<Map<String, dynamic>> _tasks = [];
   bool _isLoading = true;
   String? _error;
   String _searchQuery = '';
+  Timer? _refreshTimer;
 
   @override
   void initState() {
@@ -21,35 +24,66 @@ class _TasksScreenState extends State<TasksScreen> {
     _loadTasks();
   }
 
-  Future<void> _loadTasks() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void refresh() {
+    _loadTasks();
+  }
+
+  void _startAutoRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (_tasks.any((t) => t['status'] == 2)) {
+        _loadTasks(silent: true);
+      } else {
+        timer.cancel();
+      }
     });
+  }
+
+  Future<void> _loadTasks({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     try {
       final authService = context.read<AuthService>();
       final result = await authService.apiService.getTasks(
         search: _searchQuery.isNotEmpty ? _searchQuery : null,
       );
-      
-      // API returns {data: [...], page: 1, page_size: 20, total: 1}
+
       if (result['data'] != null) {
         setState(() {
           _tasks = List<Map<String, dynamic>>.from(result['data'] ?? []);
           _isLoading = false;
         });
+        // Start auto refresh if any task is running
+        if (_tasks.any((t) => t['status'] == 2)) {
+          _startAutoRefresh();
+        }
       } else {
+        if (!silent) {
+          setState(() {
+            _error = result['message'] ?? '获取任务失败';
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (!silent) {
         setState(() {
-          _error = result['message'] ?? '获取任务失败';
+          _error = '网络错误: $e';
           _isLoading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _error = '网络错误: $e';
-        _isLoading = false;
-      });
     }
   }
 
@@ -62,8 +96,6 @@ class _TasksScreenState extends State<TasksScreen> {
           const SnackBar(content: Text('任务已运行')),
         );
       }
-      // Wait a moment for the task to start, then refresh
-      await Future.delayed(const Duration(milliseconds: 500));
       _loadTasks();
     } catch (e) {
       if (mounted) {
@@ -83,8 +115,6 @@ class _TasksScreenState extends State<TasksScreen> {
           const SnackBar(content: Text('任务已停止')),
         );
       }
-      // Wait a moment for the task to stop, then refresh
-      await Future.delayed(const Duration(milliseconds: 500));
       _loadTasks();
     } catch (e) {
       if (mounted) {
@@ -615,7 +645,7 @@ class _TaskCard extends StatelessWidget {
   }
 }
 
-class _TaskDetailSheet extends StatelessWidget {
+class _TaskDetailSheet extends StatefulWidget {
   final Map<String, dynamic> task;
   final ScrollController scrollController;
 
@@ -625,20 +655,54 @@ class _TaskDetailSheet extends StatelessWidget {
   });
 
   @override
+  State<_TaskDetailSheet> createState() => _TaskDetailSheetState();
+}
+
+class _TaskDetailSheetState extends State<_TaskDetailSheet> {
+  Map<String, dynamic>? _latestLog;
+  bool _isLoadingLog = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLatestLog();
+  }
+
+  Future<void> _loadLatestLog() async {
+    if (widget.task['status'] != 2) return;
+
+    setState(() => _isLoadingLog = true);
+    try {
+      final authService = context.read<AuthService>();
+      final result = await authService.apiService.getTaskLatestLog(widget.task['id']);
+      if (mounted) {
+        setState(() {
+          _latestLog = result['data'] ?? result;
+          _isLoadingLog = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingLog = false);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final name = task['name'] ?? '未命名任务';
-    final taskType = task['task_type'] ?? 'cron';
-    final status = task['status'] ?? 0;
-    final cronExpression = task['cron_expression'] ?? '';
-    final command = task['command'] ?? '';
-    final createdAt = task['created_at'] ?? '';
-    final updatedAt = task['updated_at'] ?? '';
-    final lastRunAt = task['last_run_at'] ?? '';
-    final nextRunAt = task['next_run_at'] ?? '';
-    final timeout = task['timeout'] ?? 0;
-    final maxRetries = task['max_retries'] ?? 0;
-    final retryInterval = task['retry_interval'] ?? 0;
-    
+    final name = widget.task['name'] ?? '未命名任务';
+    final taskType = widget.task['task_type'] ?? 'cron';
+    final status = widget.task['status'] ?? 0;
+    final cronExpression = widget.task['cron_expression'] ?? '';
+    final command = widget.task['command'] ?? '';
+    final createdAt = widget.task['created_at'] ?? '';
+    final updatedAt = widget.task['updated_at'] ?? '';
+    final lastRunAt = widget.task['last_run_at'] ?? '';
+    final nextRunAt = widget.task['next_run_at'] ?? '';
+    final timeout = widget.task['timeout'] ?? 0;
+    final maxRetries = widget.task['max_retries'] ?? 0;
+    final retryInterval = widget.task['retry_interval'] ?? 0;
+
     Color statusColor;
     String statusText;
     switch (status) {
@@ -662,7 +726,7 @@ class _TaskDetailSheet extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       child: ListView(
-        controller: scrollController,
+        controller: widget.scrollController,
         children: [
           Center(
             child: Container(
@@ -711,6 +775,61 @@ class _TaskDetailSheet extends StatelessWidget {
           _buildDetailRow('更新时间', updatedAt),
           _buildDetailRow('上次运行', lastRunAt.isEmpty ? '未运行' : lastRunAt),
           _buildDetailRow('下次运行', nextRunAt.isEmpty ? '无' : nextRunAt),
+          // Show running log if task is running
+          if (status == 2) ...[
+            const Divider(height: 32),
+            Row(
+              children: [
+                const Icon(Icons.hourglass_empty, color: Colors.orange),
+                const SizedBox(width: 8),
+                Text(
+                  '运行日志',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadLatestLog,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _isLoadingLog
+                ? const Center(child: CircularProgressIndicator())
+                : _latestLog != null
+                    ? Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _latestLog!['task_name'] ?? '未知任务',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            SelectableText(
+                              _latestLog!['content'] ?? '暂无日志',
+                              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text('暂无运行日志'),
+                      ),
+          ],
         ],
       ),
     );

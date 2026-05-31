@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import 'dart:convert';
+import 'home_screen.dart';
 
 class ScriptsScreen extends StatefulWidget {
   const ScriptsScreen({super.key});
@@ -10,7 +11,7 @@ class ScriptsScreen extends StatefulWidget {
   State<ScriptsScreen> createState() => _ScriptsScreenState();
 }
 
-class _ScriptsScreenState extends State<ScriptsScreen> {
+class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
   List<Map<String, dynamic>> _scripts = [];
   bool _isLoading = true;
   String? _error;
@@ -20,6 +21,11 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
   @override
   void initState() {
     super.initState();
+    _loadScripts();
+  }
+
+  @override
+  void refresh() {
     _loadScripts();
   }
 

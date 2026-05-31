@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import 'dart:convert';
+import 'home_screen.dart';
 
 class BackupScreen extends StatefulWidget {
   const BackupScreen({super.key});
@@ -10,9 +11,16 @@ class BackupScreen extends StatefulWidget {
   State<BackupScreen> createState() => _BackupScreenState();
 }
 
-class _BackupScreenState extends State<BackupScreen> {
+class _BackupScreenState extends State<BackupScreen> with RefreshableScreen {
   bool _isLoading = false;
   String? _message;
+
+  @override
+  void refresh() {
+    setState(() {
+      _message = null;
+    });
+  }
 
   Future<void> _exportData() async {
     setState(() { _isLoading = true; _message = null; });

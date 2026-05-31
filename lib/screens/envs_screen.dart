@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import 'home_screen.dart';
 
 class EnvsScreen extends StatefulWidget {
   const EnvsScreen({super.key});
@@ -9,7 +10,7 @@ class EnvsScreen extends StatefulWidget {
   State<EnvsScreen> createState() => _EnvsScreenState();
 }
 
-class _EnvsScreenState extends State<EnvsScreen> {
+class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
   List<Map<String, dynamic>> _envs = [];
   bool _isLoading = true;
   String? _error;
@@ -17,6 +18,11 @@ class _EnvsScreenState extends State<EnvsScreen> {
   @override
   void initState() {
     super.initState();
+    _loadEnvs();
+  }
+
+  @override
+  void refresh() {
     _loadEnvs();
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/root/magisk_helper.dart';
+import 'home_screen.dart';
 
 class SystemScreen extends StatefulWidget {
   const SystemScreen({super.key});
@@ -10,7 +11,7 @@ class SystemScreen extends StatefulWidget {
   State<SystemScreen> createState() => _SystemScreenState();
 }
 
-class _SystemScreenState extends State<SystemScreen> {
+class _SystemScreenState extends State<SystemScreen> with RefreshableScreen {
   bool _isLoading = true;
   bool _isRooted = false;
   Map<String, dynamic> _systemInfo = {};
@@ -20,6 +21,11 @@ class _SystemScreenState extends State<SystemScreen> {
   @override
   void initState() {
     super.initState();
+    _loadSystemInfo();
+  }
+
+  @override
+  void refresh() {
     _loadSystemInfo();
   }
 

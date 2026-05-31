@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/api_service.dart';
+import '../services/auth_service.dart';
+import 'home_screen.dart';
 
 class StatsScreen extends StatefulWidget {
   const StatsScreen({super.key});
@@ -9,7 +10,7 @@ class StatsScreen extends StatefulWidget {
   State<StatsScreen> createState() => _StatsScreenState();
 }
 
-class _StatsScreenState extends State<StatsScreen> {
+class _StatsScreenState extends State<StatsScreen> with RefreshableScreen {
   Map<String, dynamic>? _dashboard;
   Map<String, dynamic>? _systemStats;
   bool _isLoading = false;
@@ -21,10 +22,16 @@ class _StatsScreenState extends State<StatsScreen> {
     _loadData();
   }
 
+  @override
+  void refresh() {
+    _loadData();
+  }
+
   Future<void> _loadData() async {
     setState(() { _isLoading = true; _error = null; });
     try {
-      final api = context.read<ApiService>();
+      final authService = context.read<AuthService>();
+      final api = authService.apiService;
       final dashboard = await api.getDashboard();
       final systemInfo = await api.getSystemInfo();
       setState(() {

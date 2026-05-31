@@ -25,6 +25,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   bool _isSidebarExpanded = false;
+  final GlobalKey<_RefreshableScreenState> _refreshableScreenKey = GlobalKey();
 
   final List<_NavigationItem> _navigationItems = [
     _NavigationItem(Icons.list_alt, '任务'),
@@ -49,6 +50,10 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _refreshCurrentScreen() {
+    _refreshableScreenKey.currentState?.refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     final authService = context.watch<AuthService>();
@@ -71,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () {},
+            onPressed: _refreshCurrentScreen,
           ),
           PopupMenuButton(
             itemBuilder: (context) => [
@@ -209,33 +214,33 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _getSelectedScreen() {
     switch (_selectedIndex) {
       case 0:
-        return const TasksScreen();
+        return TasksScreen(key: _refreshableScreenKey);
       case 1:
-        return const EnvsScreen();
+        return EnvsScreen(key: _refreshableScreenKey);
       case 2:
-        return const DependenciesScreen();
+        return DependenciesScreen(key: _refreshableScreenKey);
       case 3:
-        return const ScriptsScreen();
+        return ScriptsScreen(key: _refreshableScreenKey);
       case 4:
-        return const LogsScreen();
+        return LogsScreen(key: _refreshableScreenKey);
       case 5:
-        return const NotificationsScreen();
+        return NotificationsScreen(key: _refreshableScreenKey);
       case 6:
-        return const SystemScreen();
+        return SystemScreen(key: _refreshableScreenKey);
       case 7:
-        return const QuickActionsScreen();
+        return QuickActionsScreen(key: _refreshableScreenKey);
       case 8:
-        return const StatsScreen();
+        return StatsScreen(key: _refreshableScreenKey);
       case 9:
-        return const TerminalScreen();
+        return TerminalScreen(key: _refreshableScreenKey);
       case 10:
-        return const BackupScreen();
+        return BackupScreen(key: _refreshableScreenKey);
       case 11:
-        return const ConfigScreen();
+        return ConfigScreen(key: _refreshableScreenKey);
       case 12:
-        return const SettingsScreen();
+        return SettingsScreen(key: _refreshableScreenKey);
       default:
-        return const TasksScreen();
+        return TasksScreen(key: _refreshableScreenKey);
     }
   }
 }
@@ -245,4 +250,8 @@ class _NavigationItem {
   final String title;
 
   _NavigationItem(this.icon, this.title);
+}
+
+mixin RefreshableScreen<T extends StatefulWidget> on State<T> {
+  void refresh();
 }

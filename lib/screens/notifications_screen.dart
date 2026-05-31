@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import 'home_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -9,7 +10,7 @@ class NotificationsScreen extends StatefulWidget {
   State<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen> {
+class _NotificationsScreenState extends State<NotificationsScreen> with RefreshableScreen {
   List<Map<String, dynamic>> _notifications = [];
   bool _isLoading = true;
   String? _error;
@@ -20,6 +21,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     super.initState();
     _loadNotifications();
     _checkNotificationPermission();
+  }
+
+  @override
+  void refresh() {
+    _loadNotifications();
   }
 
   Future<void> _checkNotificationPermission() async {

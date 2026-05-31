@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../main.dart';
 import '../services/auth_service.dart';
 import '../services/root/magisk_helper.dart';
+import 'home_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -10,13 +12,18 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen {
   bool _isRooted = false;
   MagiskModuleInfo? _moduleInfo;
 
   @override
   void initState() {
     super.initState();
+    _checkRootStatus();
+  }
+
+  @override
+  void refresh() {
     _checkRootStatus();
   }
 
@@ -39,6 +46,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final authService = context.watch<AuthService>();
+    final themeProvider = context.watch<ThemeProvider>();
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -150,14 +158,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Text('应用设置', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 16),
-                SwitchListTile(
-                  secondary: const Icon(Icons.dark_mode),
+                ListTile(
+                  leading: const Icon(Icons.dark_mode),
                   title: const Text('深色模式'),
-                  subtitle: const Text('跟随系统设置'),
-                  value: Theme.of(context).brightness == Brightness.dark,
-                  onChanged: (value) {
-                    // TODO: Implement theme switching
-                  },
+                  subtitle: Text(_getThemeModeText(themeProvider.themeMode)),
+                  trailing: DropdownButton<ThemeMode>(
+                    value: themeProvider.themeMode,
+                    onChanged: (mode) {
+                      if (mode != null) {
+                        themeProvider.setThemeMode(mode);
+                      }
+                    },
+                    items: const [
+                      DropdownMenuItem(
+                        value: ThemeMode.system,
+                        child: Text('跟随系统'),
+                      ),
+                      DropdownMenuItem(
+                        value: ThemeMode.light,
+                        child: Text('浅色模式'),
+                      ),
+                      DropdownMenuItem(
+                        value: ThemeMode.dark,
+                        child: Text('深色模式'),
+                      ),
+                    ],
+                  ),
                 ),
                 SwitchListTile(
                   secondary: const Icon(Icons.notifications_active),
@@ -186,7 +212,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const ListTile(
                   leading: Icon(Icons.info),
                   title: Text('版本'),
-                  subtitle: Text('v0.0.15-flutter'),
+                  subtitle: Text('v0.0.18-flutter'),
                 ),
                 const ListTile(
                   leading: Icon(Icons.code),
@@ -196,7 +222,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const ListTile(
                   leading: Icon(Icons.phone_android),
                   title: Text('支持平台'),
-                  subtitle: Text('Android, iOS, Web'),
+                  subtitle: Text('Android, iOS'),
                 ),
               ],
             ),
@@ -210,5 +236,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ],
     );
+  }
+
+  String _getThemeModeText(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.system:
+        return '跟随系统设置';
+      case ThemeMode.light:
+        return '浅色模式';
+      case ThemeMode.dark:
+        return '深色模式';
+    }
   }
 }

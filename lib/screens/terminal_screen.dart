@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import 'dart:convert';
 import 'dart:async';
+import 'home_screen.dart';
 
 class TerminalScreen extends StatefulWidget {
   const TerminalScreen({super.key});
@@ -12,7 +13,7 @@ class TerminalScreen extends StatefulWidget {
   State<TerminalScreen> createState() => _TerminalScreenState();
 }
 
-class _TerminalScreenState extends State<TerminalScreen> {
+class _TerminalScreenState extends State<TerminalScreen> with RefreshableScreen {
   final _commandController = TextEditingController();
   final _scrollController = ScrollController();
   final List<Map<String, dynamic>> _output = [];
@@ -34,6 +35,13 @@ class _TerminalScreenState extends State<TerminalScreen> {
     _scrollController.dispose();
     _wsSubscription?.cancel();
     super.dispose();
+  }
+
+  @override
+  void refresh() {
+    setState(() {
+      _output.clear();
+    });
   }
 
   void _initWebSocket() {

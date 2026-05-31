@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import 'package:provider/provider.dart';
+import 'home_screen.dart';
 
 class QuickActionsScreen extends StatefulWidget {
   const QuickActionsScreen({super.key});
@@ -10,7 +11,7 @@ class QuickActionsScreen extends StatefulWidget {
   State<QuickActionsScreen> createState() => _QuickActionsScreenState();
 }
 
-class _QuickActionsScreenState extends State<QuickActionsScreen> {
+class _QuickActionsScreenState extends State<QuickActionsScreen> with RefreshableScreen {
   final _cronController = TextEditingController();
   final _importController = TextEditingController();
   List<String>? _cronResults;
@@ -25,8 +26,18 @@ class _QuickActionsScreenState extends State<QuickActionsScreen> {
     super.dispose();
   }
 
+  @override
+  void refresh() {
+    setState(() {
+      _message = null;
+      _cronResults = null;
+      _exportedData = null;
+    });
+  }
+
   Future<void> _batchRunTasks() async {
-    final api = context.read<ApiService>();
+    final authService = context.read<AuthService>();
+    final api = authService.apiService;
     setState(() { _isLoading = true; _message = null; });
     try {
       final tasks = await api.getTasks(pageSize: 1000);
@@ -45,7 +56,8 @@ class _QuickActionsScreenState extends State<QuickActionsScreen> {
   }
 
   Future<void> _batchEnableTasks() async {
-    final api = context.read<ApiService>();
+    final authService = context.read<AuthService>();
+    final api = authService.apiService;
     setState(() { _isLoading = true; _message = null; });
     try {
       final tasks = await api.getTasks(pageSize: 1000);
@@ -60,7 +72,8 @@ class _QuickActionsScreenState extends State<QuickActionsScreen> {
   }
 
   Future<void> _batchDisableTasks() async {
-    final api = context.read<ApiService>();
+    final authService = context.read<AuthService>();
+    final api = authService.apiService;
     setState(() { _isLoading = true; _message = null; });
     try {
       final tasks = await api.getTasks(pageSize: 1000);
@@ -88,7 +101,8 @@ class _QuickActionsScreenState extends State<QuickActionsScreen> {
     );
     if (confirm != true) return;
 
-    final api = context.read<ApiService>();
+    final authService = context.read<AuthService>();
+    final api = authService.apiService;
     setState(() { _isLoading = true; _message = null; });
     try {
       final tasks = await api.getTasks(pageSize: 1000);
@@ -101,7 +115,8 @@ class _QuickActionsScreenState extends State<QuickActionsScreen> {
   }
 
   Future<void> _exportTasks() async {
-    final api = context.read<ApiService>();
+    final authService = context.read<AuthService>();
+    final api = authService.apiService;
     setState(() { _isLoading = true; _message = null; });
     try {
       final tasks = await api.getTasks(pageSize: 1000);
@@ -121,7 +136,8 @@ class _QuickActionsScreenState extends State<QuickActionsScreen> {
       setState(() { _message = '请输入导入数据'; });
       return;
     }
-    final api = context.read<ApiService>();
+    final authService = context.read<AuthService>();
+    final api = authService.apiService;
     setState(() { _isLoading = true; _message = null; });
     try {
       // Parse and import tasks

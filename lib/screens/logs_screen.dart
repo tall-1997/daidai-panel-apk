@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import 'home_screen.dart';
 
 class LogsScreen extends StatefulWidget {
   const LogsScreen({super.key});
@@ -9,7 +10,7 @@ class LogsScreen extends StatefulWidget {
   State<LogsScreen> createState() => _LogsScreenState();
 }
 
-class _LogsScreenState extends State<LogsScreen> {
+class _LogsScreenState extends State<LogsScreen> with RefreshableScreen {
   List<Map<String, dynamic>> _logs = [];
   bool _isLoading = true;
   String? _error;
@@ -21,6 +22,11 @@ class _LogsScreenState extends State<LogsScreen> {
   @override
   void initState() {
     super.initState();
+    _loadLogs();
+  }
+
+  @override
+  void refresh() {
     _loadLogs();
   }
 
