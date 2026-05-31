@@ -20,11 +20,8 @@ subprojects {
 }
 
 subprojects {
-    afterEvaluate {
-        project.extensions.findByType<com.android.build.gradle.BaseExtension>()?.apply {
-            compileSdkVersion(36)
-        }
-    }
+    val ext = project.extensions.findByType<com.android.build.gradle.BaseExtension>()
+    ext?.compileSdkVersion(36)
 }
 
 tasks.register<Delete>("clean") {
