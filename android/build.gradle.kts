@@ -16,10 +16,12 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 
-subprojects {
-    val ext = project.extensions.findByType<com.android.build.gradle.BaseExtension>()
-    if (ext != null) {
-        ext.compileSdkVersion = 36
+gradle.projectsEvaluated {
+    subprojects {
+        val ext = project.extensions.findByType<com.android.build.gradle.BaseExtension>()
+        if (ext != null) {
+            ext.compileSdkVersion = 36
+        }
     }
 }
 
