@@ -833,7 +833,7 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
   }
 }
 
-class _TaskCard extends StatefulWidget {
+class _TaskCard extends StatelessWidget {
   final Map<String, dynamic> task;
   final bool isSelectionMode;
   final bool isSelected;
@@ -859,55 +859,15 @@ class _TaskCard extends StatefulWidget {
   });
 
   @override
-  State<_TaskCard> createState() => _TaskCardState();
-}
-
-class _TaskCardState extends State<_TaskCard> {
-  bool _isExpanded = false;
-  Map<String, dynamic>? _latestLog;
-  bool _isLoadingLog = false;
-
-  Future<void> _loadLatestLog() async {
-    if (_latestLog != null) return;
-    
-    setState(() => _isLoadingLog = true);
-    try {
-      final authService = context.read<AuthService>();
-      final result = await authService.apiService.getTaskLatestLog(widget.task['id']);
-      if (mounted) {
-        setState(() {
-          _latestLog = result['data'] ?? result;
-          _isLoadingLog = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoadingLog = false);
-      }
-    }
-  }
-
-  String _cleanLogContent(dynamic content) {
-    if (content == null) return '';
-    String str = content.toString();
-    
-    // Remove ANSI escape sequences
-    str = str.replaceAll(RegExp(r'\x1B\[[0-9;]*[a-zA-Z]'), '');
-    str = str.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'), '');
-    
-    return str.trim();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final name = widget.task['name'] ?? '未命名任务';
-    final taskType = widget.task['task_type'] ?? 'cron';
-    final status = widget.task['status'] ?? 0;
-    final cronExpression = widget.task['cron_expression'] ?? '';
-    final command = widget.task['command'] ?? '';
-    final lastRunAt = widget.task['last_run_at'] ?? '';
-    final nextRunAt = widget.task['next_run_at'] ?? '';
-    final isPinned = widget.task['is_pinned'] ?? false;
+    final name = task['name'] ?? '未命名任务';
+    final taskType = task['task_type'] ?? 'cron';
+    final status = task['status'] ?? 0;
+    final cronExpression = task['cron_expression'] ?? '';
+    final command = task['command'] ?? '';
+    final lastRunAt = task['last_run_at'] ?? '';
+    final nextRunAt = task['next_run_at'] ?? '';
+    final isPinned = task['is_pinned'] ?? false;
     
     Color statusColor;
     String statusText;
@@ -932,7 +892,7 @@ class _TaskCardState extends State<_TaskCard> {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
-        onTap: widget.isSelectionMode ? widget.onSelectionChanged : widget.onTap,
+        onTap: isSelectionMode ? onSelectionChanged : onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -941,12 +901,12 @@ class _TaskCardState extends State<_TaskCard> {
             children: [
               Row(
                 children: [
-                  if (widget.isSelectionMode)
+                  if (isSelectionMode)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: Icon(
-                        widget.isSelected ? Icons.check_circle : Icons.circle_outlined,
-                        color: widget.isSelected ? Theme.of(context).colorScheme.primary : Colors.grey,
+                        isSelected ? Icons.check_circle : Icons.circle_outlined,
+                        color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey,
                       ),
                     ),
                   if (isPinned)
@@ -1014,119 +974,6 @@ class _TaskCardState extends State<_TaskCard> {
                   ),
                 ),
               ],
-              // Expand/collapse log button
-              if (lastRunAt.isNotEmpty)
-                InkWell(
-                  onTap: () {
-                    setState(() {
-                      _isExpanded = !_isExpanded;
-                      if (_isExpanded) {
-                        _loadLatestLog();
-                      }
-                    });
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: [
-                        Icon(
-                          _isExpanded ? Icons.expand_less : Icons.expand_more,
-                          size: 16,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _isExpanded ? '收起日志' : '展开上次运行日志',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              // Expanded log content
-              if (_isExpanded) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: _isLoadingLog
-                      ? const Center(
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        )
-                      : _latestLog != null
-                          ? Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      _latestLog!['status'] == 0
-                                          ? Icons.check_circle
-                                          : _latestLog!['status'] == 1
-                                              ? Icons.error
-                                              : Icons.hourglass_empty,
-                                      size: 14,
-                                      color: _latestLog!['status'] == 0
-                                          ? Colors.green
-                                          : _latestLog!['status'] == 1
-                                              ? Colors.red
-                                              : Colors.orange,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      _latestLog!['status'] == 0
-                                          ? '成功'
-                                          : _latestLog!['status'] == 1
-                                              ? '失败'
-                                              : '运行中',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: _latestLog!['status'] == 0
-                                            ? Colors.green
-                                            : _latestLog!['status'] == 1
-                                                ? Colors.red
-                                                : Colors.orange,
-                                      ),
-                                    ),
-                                    const Spacer(),
-                                    if (_latestLog!['duration'] != null && _latestLog!['duration'] > 0)
-                                      Text(
-                                        '${_latestLog!['duration']}ms',
-                                        style: const TextStyle(fontSize: 11, color: Colors.grey),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _cleanLogContent(_latestLog!['content'] ?? _latestLog!['output'] ?? '').isEmpty
-                                      ? '无日志内容'
-                                      : _cleanLogContent(_latestLog!['content'] ?? _latestLog!['output'] ?? ''),
-                                  style: const TextStyle(
-                                    fontFamily: 'monospace',
-                                    fontSize: 11,
-                                  ),
-                                  maxLines: 10,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            )
-                          : const Text(
-                              '暂无运行日志',
-                              style: TextStyle(fontSize: 12, color: Colors.grey),
-                            ),
-                ),
-              ],
               const SizedBox(height: 12),
                 Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -1135,33 +982,33 @@ class _TaskCardState extends State<_TaskCard> {
                   if (status != 2)
                     IconButton(
                       icon: const Icon(Icons.play_arrow, color: Colors.green),
-                      onPressed: widget.onRun,
+                      onPressed: onRun,
                       tooltip: '运行',
                     ),
                   // Stop button - only show for running tasks
                   if (status == 2)
                     IconButton(
                       icon: const Icon(Icons.stop, color: Colors.red),
-                      onPressed: widget.onStop,
+                      onPressed: onStop,
                       tooltip: '停止',
                     ),
                   // Enable button - only show for disabled tasks
                   if (status == 0)
                     IconButton(
                       icon: const Icon(Icons.check_circle, color: Colors.blue),
-                      onPressed: widget.onEnable,
+                      onPressed: onEnable,
                       tooltip: '启用',
                     ),
                   // Disable button - only show for enabled tasks
                   if (status == 1)
                     IconButton(
                       icon: const Icon(Icons.pause, color: Colors.orange),
-                      onPressed: widget.onDisable,
+                      onPressed: onDisable,
                       tooltip: '禁用',
                     ),
                   IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: widget.onDelete,
+                    onPressed: onDelete,
                     tooltip: '删除',
                   ),
                 ],
@@ -1188,74 +1035,40 @@ class _TaskDetailSheet extends StatefulWidget {
 }
 
 class _TaskDetailSheetState extends State<_TaskDetailSheet> {
-  Map<String, dynamic>? _latestLog;
-  bool _isLoadingLog = false;
-  Timer? _logRefreshTimer;
-  int _logRefreshCount = 0;
+  List<Map<String, dynamic>> _taskLogs = [];
+  bool _isLoadingLogs = false;
+  Map<String, dynamic>? _selectedLog;
 
   @override
   void initState() {
     super.initState();
-    _loadLatestLog();
-    _startLogAutoRefresh();
+    _loadTaskLogs();
   }
 
-  @override
-  void dispose() {
-    _logRefreshTimer?.cancel();
-    super.dispose();
-  }
-
-  void _startLogAutoRefresh() {
-    if (widget.task['status'] == 2) {
-      _logRefreshTimer?.cancel();
-      // 更频繁地刷新日志 - 每1秒刷新一次
-      _logRefreshTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (mounted) {
-          _loadLatestLog(silent: true);
-          _logRefreshCount++;
-          // 如果任务不再运行，停止刷新
-          if (widget.task['status'] != 2) {
-            timer.cancel();
-          }
-        } else {
-          timer.cancel();
-        }
-      });
-    }
-  }
-
-  Future<void> _loadLatestLog({bool silent = false}) async {
-    if (!mounted) return;
-
-    if (!silent) {
-      setState(() => _isLoadingLog = true);
-    }
-    
+  Future<void> _loadTaskLogs() async {
+    setState(() => _isLoadingLogs = true);
     try {
       final authService = context.read<AuthService>();
-      final result = await authService.apiService.getTaskLatestLog(widget.task['id']);
+      final result = await authService.apiService.getTaskLogs(widget.task['id']);
       if (mounted) {
-        final newLog = result['data'] ?? result;
-        // 只在日志内容变化时更新UI，减少不必要的重绘
-        if (_latestLog == null || 
-            _latestLog!['content'] != newLog['content'] ||
-            _latestLog!['status'] != newLog['status']) {
-          setState(() {
-            _latestLog = newLog;
-            _isLoadingLog = false;
-          });
-        } else if (!silent) {
-          setState(() {
-            _isLoadingLog = false;
-          });
-        }
+        setState(() {
+          _taskLogs = List<Map<String, dynamic>>.from(result['data'] ?? result['logs'] ?? []);
+          _isLoadingLogs = false;
+        });
       }
     } catch (e) {
-      if (mounted && !silent) {
-        setState(() => _isLoadingLog = false);
+      if (mounted) {
+        setState(() => _isLoadingLogs = false);
       }
     }
+  }
+
+  String _cleanLogContent(dynamic content) {
+    if (content == null) return '';
+    String str = content.toString();
+    str = str.replaceAll(RegExp(r'\x1B\[[0-9;]*[a-zA-Z]'), '');
+    str = str.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'), '');
+    return str.trim();
   }
 
   @override
@@ -1270,8 +1083,6 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
     final lastRunAt = widget.task['last_run_at'] ?? '';
     final nextRunAt = widget.task['next_run_at'] ?? '';
     final timeout = widget.task['timeout'] ?? 0;
-    final maxRetries = widget.task['max_retries'] ?? 0;
-    final retryInterval = widget.task['retry_interval'] ?? 0;
 
     Color statusColor;
     String statusText;
@@ -1338,126 +1149,219 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
           _buildDetailRow('Cron 表达式', cronExpression.isEmpty ? '无' : cronExpression),
           _buildDetailRow('执行命令', command),
           _buildDetailRow('超时时间', '${timeout}秒'),
-          _buildDetailRow('最大重试', '$maxRetries次'),
-          _buildDetailRow('重试间隔', '${retryInterval}秒'),
           const Divider(height: 32),
           _buildDetailRow('创建时间', createdAt),
           _buildDetailRow('更新时间', updatedAt),
           _buildDetailRow('上次运行', lastRunAt.isEmpty ? '未运行' : lastRunAt),
           _buildDetailRow('下次运行', nextRunAt.isEmpty ? '无' : nextRunAt),
-          // Show running log if task is running
-          if (status == 2) ...[
-            const Divider(height: 32),
-            Row(
-              children: [
-                const Icon(Icons.hourglass_empty, color: Colors.orange),
-                const SizedBox(width: 8),
-                Text(
-                  '运行日志',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+          // History logs section
+          const Divider(height: 32),
+          Row(
+            children: [
+              const Icon(Icons.history, color: Colors.blue),
+              const SizedBox(width: 8),
+              Text(
+                '历史运行日志',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(width: 8),
-                // 实时刷新指示器
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: const BoxDecoration(
-                          color: Colors.green,
-                          shape: BoxShape.circle,
-                        ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _loadTaskLogs,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _isLoadingLogs
+              ? const Center(child: CircularProgressIndicator())
+              : _taskLogs.isEmpty
+                  ? Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      const SizedBox(width: 4),
-                      const Text(
-                        '实时',
-                        style: TextStyle(fontSize: 10, color: Colors.green),
+                      child: const Center(child: Text('暂无历史日志', style: TextStyle(color: Colors.grey))),
+                    )
+                  : Column(
+                      children: _taskLogs.map((log) => _buildLogItem(log)).toList(),
+                    ),
+          // Selected log detail
+          if (_selectedLog != null) ...[
+            const SizedBox(height: 16),
+            _buildLogDetail(_selectedLog!),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogItem(Map<String, dynamic> log) {
+    final logId = log['id'] ?? 0;
+    final status = log['status'] ?? 0;
+    final createdAt = log['created_at'] ?? '';
+    final duration = log['duration'] ?? 0;
+    final isSelected = _selectedLog?['id'] == logId;
+
+    Color statusColor;
+    String statusText;
+    IconData statusIcon;
+    switch (status) {
+      case 0:
+        statusColor = Colors.green;
+        statusText = '成功';
+        statusIcon = Icons.check_circle;
+        break;
+      case 1:
+        statusColor = Colors.red;
+        statusText = '失败';
+        statusIcon = Icons.error;
+        break;
+      case 2:
+        statusColor = Colors.orange;
+        statusText = '运行中';
+        statusIcon = Icons.hourglass_empty;
+        break;
+      default:
+        statusColor = Colors.grey;
+        statusText = '未知';
+        statusIcon = Icons.help;
+    }
+
+    String durationText = '';
+    if (duration > 0) {
+      if (duration < 1000) {
+        durationText = '${duration}ms';
+      } else if (duration < 60000) {
+        durationText = '${(duration / 1000).toStringAsFixed(1)}s';
+      } else {
+        durationText = '${(duration / 60000).toStringAsFixed(1)}min';
+      }
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      color: isSelected ? Colors.blue.withOpacity(0.1) : null,
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _selectedLog = isSelected ? null : log;
+          });
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Icon(statusIcon, size: 18, color: statusColor),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      createdAt,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    if (durationText.isNotEmpty)
+                      Text(
+                        '耗时: $durationText',
+                        style: const TextStyle(fontSize: 11, color: Colors.grey),
                       ),
-                    ],
-                  ),
+                  ],
                 ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  onPressed: _loadLatestLog,
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
                 ),
-              ],
+                child: Text(
+                  statusText,
+                  style: TextStyle(fontSize: 11, color: statusColor),
+                ),
+              ),
+              Icon(
+                isSelected ? Icons.expand_less : Icons.expand_more,
+                size: 20,
+                color: Colors.grey,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogDetail(Map<String, dynamic> log) {
+    final content = log['content'] ?? log['output'] ?? '';
+    final error = log['error'] ?? '';
+    final startedAt = log['started_at'] ?? '';
+    final endedAt = log['ended_at'] ?? '';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.article, size: 16, color: Colors.blue),
+              const SizedBox(width: 4),
+              const Text('日志详情', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.copy, size: 16),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: _cleanLogContent(content)));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('日志已复制'), backgroundColor: Colors.green),
+                  );
+                },
+              ),
+            ],
+          ),
+          if (startedAt.isNotEmpty)
+            Text('开始: $startedAt', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          if (endedAt.isNotEmpty)
+            Text('结束: $endedAt', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(4),
             ),
+            child: SelectableText(
+              _cleanLogContent(content).isEmpty ? '无日志内容' : _cleanLogContent(content),
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+            ),
+          ),
+          if (error.isNotEmpty) ...[
             const SizedBox(height: 8),
-            _isLoadingLog && _latestLog == null
-                ? const Center(child: CircularProgressIndicator())
-                : _latestLog != null
-                    ? Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.orange),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    _latestLog!['task_name'] ?? '未知任务',
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                if (_latestLog!['status'] != null)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: _latestLog!['status'] == 0 
-                                          ? Colors.green.withOpacity(0.2)
-                                          : _latestLog!['status'] == 1 
-                                              ? Colors.red.withOpacity(0.2)
-                                              : Colors.orange.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      _latestLog!['status'] == 0 ? '成功' 
-                                          : _latestLog!['status'] == 1 ? '失败' : '运行中',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: _latestLog!['status'] == 0 
-                                            ? Colors.green 
-                                            : _latestLog!['status'] == 1 
-                                                ? Colors.red 
-                                                : Colors.orange,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            SelectableText(
-                              _latestLog!['content'] ?? '暂无日志',
-                              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      )
-                    : Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text('暂无运行日志'),
-                      ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: SelectableText(
+                _cleanLogContent(error),
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.red),
+              ),
+            ),
           ],
         ],
       ),

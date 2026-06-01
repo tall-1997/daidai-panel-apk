@@ -234,8 +234,10 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
       final authService = context.read<AuthService>();
       final result = await authService.apiService.getSystemLogs(page: 1, pageSize: 1000);
       
-      if (result['code'] == 0 || result['code'] == 200 || result['success'] == true) {
-        final logs = result['data'] ?? result['logs'] ?? [];
+      // 兼容多种 API 返回格式
+      final logs = result['data'] ?? result['logs'] ?? result['items'] ?? [];
+      
+      if (logs is List && logs.isNotEmpty) {
         final StringBuffer logBuffer = StringBuffer();
         
         logBuffer.writeln('=== 呆呆面板应用日志 ===');
@@ -295,7 +297,12 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
           );
         }
       } else {
-        throw Exception(result['message'] ?? '获取日志失败');
+        // 如果没有日志数据，显示提示
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('暂无日志数据'), backgroundColor: Colors.orange),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
