@@ -415,9 +415,9 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
-  // Dependency APIs (QingLong Panel standard: /dependencies)
+  // Dependency APIs (daidai-panel: /deps)
   Future<Map<String, dynamic>> getDependencies({String? type}) async {
-    String path = '/dependencies';
+    String path = '/deps';
     if (type != null && type.isNotEmpty && type != 'all') {
       path += '?type=$type';
     }
@@ -426,49 +426,42 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> installDependency(String type, List<String> names) async {
-    // QingLong format: POST /dependencies with body [{name, type}]
-    // type: 0=nodejs, 1=python3, 2=linux
-    int typeCode = 0;
-    switch (type.toLowerCase()) {
-      case 'python': typeCode = 1; break;
-      case 'linux': typeCode = 2; break;
-      default: typeCode = 0;
-    }
-    final List<Map<String, dynamic>> body = names.map((name) => {
-      'name': name,
-      'type': typeCode,
-    }).toList();
-    final response = await post('/dependencies', body: body);
+    // daidai-panel format: POST /deps with body {type, names}
+    final response = await post('/deps', body: {
+      'type': type,
+      'names': names,
+    });
     return jsonDecode(response.body);
   }
 
   Future<Map<String, dynamic>> uninstallDependency(int id) async {
-    // QingLong: DELETE /dependencies/force with body [id]
-    final uri = Uri.parse('$baseUrl/api/v1/dependencies/force');
-    final response = await http.delete(uri, headers: _headers, body: jsonEncode([id]));
+    final response = await delete('/deps/$id');
     return jsonDecode(response.body);
   }
 
   Future<Map<String, dynamic>> reinstallDependency(int id) async {
-    // QingLong: PUT /dependencies/reinstall with body [id]
-    final response = await put('/dependencies/reinstall', body: [id]);
+    final response = await put('/deps/$id/reinstall');
     return jsonDecode(response.body);
   }
 
-  Future<Map<String, dynamic>> getDependencyLog(int id) async {
-    // QingLong: GET /dependencies/{id} returns {data: {log: [...]}}
-    final response = await get('/dependencies/$id');
+  Future<Map<String, dynamic>> getDepStatus(int id) async {
+    // daidai-panel: GET /deps/:id/status returns {data: {status, log, ...}}
+    final response = await get('/deps/$id/status');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> cancelDepOperation(int id) async {
+    final response = await put('/deps/$id/cancel');
     return jsonDecode(response.body);
   }
 
   Future<Map<String, dynamic>> batchDeleteDeps(List<int> ids) async {
-    final uri = Uri.parse('$baseUrl/api/v1/dependencies/force');
-    final response = await http.delete(uri, headers: _headers, body: jsonEncode(ids));
+    final response = await post('/deps/batch-delete', body: {'ids': ids});
     return jsonDecode(response.body);
   }
 
   Future<Map<String, dynamic>> batchReinstallDeps(List<int> ids) async {
-    final response = await put('/dependencies/reinstall', body: ids);
+    final response = await post('/deps/batch-reinstall', body: {'ids': ids});
     return jsonDecode(response.body);
   }
 

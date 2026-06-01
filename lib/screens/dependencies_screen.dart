@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:convert';
+import 'dart:async';
 import '../services/auth_service.dart';
 import 'home_screen.dart';
 
@@ -16,13 +16,18 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
   bool _isLoading = true;
   String? _error;
   String _filterType = 'all'; // all, nodejs, python, linux
-  Map<int, String> _installingDeps = {}; // depId -> status message
-  Map<int, bool> _loadingLogs = {}; // depId -> loading
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     _loadDependencies();
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -38,7 +43,8 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
 
     try {
       final authService = context.read<AuthService>();
-      final result = await authService.apiService.getDependencies();
+      final typeParam = _filterType == 'all' ? null : _filterType;
+      final result = await authService.apiService.getDependencies(type: typeParam);
 
       if (mounted) {
         List<dynamic> deps = [];
@@ -46,16 +52,15 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
           deps = result['data'];
         } else if (result['data'] is Map && result['data']['data'] is List) {
           deps = result['data']['data'];
-        } else if (result['deps'] is List) {
-          deps = result['deps'];
-        } else if (result['items'] is List) {
-          deps = result['items'];
         }
-        
+
         setState(() {
           _dependencies = List<Map<String, dynamic>>.from(deps);
           _isLoading = false;
         });
+
+        // Start polling if any deps are in progress
+        _startPollIfNeeded();
       }
     } catch (e) {
       if (mounted) {
@@ -67,47 +72,40 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
     }
   }
 
-  List<Map<String, dynamic>> _getFilteredDeps() {
-    if (_filterType == 'all') return _dependencies;
-    // Map filter type to QingLong type code
-    int filterCode;
-    switch (_filterType) {
-      case 'nodejs': filterCode = 0; break;
-      case 'python': filterCode = 1; break;
-      case 'linux': filterCode = 2; break;
-      default: return _dependencies;
-    }
-    return _dependencies.where((dep) {
-      final type = dep['type'] ?? dep['typeCode'] ?? 0;
-      return type == filterCode;
-    }).toList();
-  }
-
-  // Install dependency: POST /dependencies with [{name, type}]
-  Future<void> _installDep(String type, List<String> names) async {
-    final depKey = '${type}_${names.join(",")}';
-    setState(() {
-      _installingDeps[depKey.hashCode] = '正在安装...';
+  void _startPollIfNeeded() {
+    final hasInProgress = _dependencies.any((d) {
+      final s = d['status'] ?? '';
+      return s == 'installing' || s == 'queued' || s == 'removing';
     });
 
+    if (hasInProgress && _pollTimer == null) {
+      _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+        _loadDependencies();
+      });
+    } else if (!hasInProgress && _pollTimer != null) {
+      _pollTimer?.cancel();
+      _pollTimer = null;
+    }
+  }
+
+  List<Map<String, dynamic>> _getFilteredDeps() {
+    if (_filterType == 'all') return _dependencies;
+    return _dependencies.where((dep) => dep['type'] == _filterType).toList();
+  }
+
+  // POST /deps {type, names}
+  Future<void> _installDep(String type, List<String> names) async {
     try {
       final authService = context.read<AuthService>();
       await authService.apiService.installDependency(type, names);
-
       if (mounted) {
-        setState(() {
-          _installingDeps.remove(depKey.hashCode);
-        });
-        _loadDependencies();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('依赖安装请求已提交: ${names.join(", ")}'), backgroundColor: Colors.green),
+          SnackBar(content: Text('已提交 ${names.length} 个依赖安装'), backgroundColor: Colors.green),
         );
+        _loadDependencies();
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _installingDeps[depKey.hashCode] = '安装失败';
-        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('安装失败: $e'), backgroundColor: Colors.red),
         );
@@ -115,7 +113,7 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
     }
   }
 
-  // Uninstall dependency: DELETE /dependencies/force with [id]
+  // DELETE /deps/:id
   Future<void> _uninstallDep(int id, String name) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -153,59 +151,50 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
     }
   }
 
-  // Reinstall dependency: PUT /dependencies/reinstall with [id]
+  // PUT /deps/:id/reinstall
   Future<void> _reinstallDep(int id) async {
-    setState(() {
-      _installingDeps[id] = '正在重新安装...';
-    });
-
     try {
       final authService = context.read<AuthService>();
       await authService.apiService.reinstallDependency(id);
       _loadDependencies();
       if (mounted) {
-        setState(() {
-          _installingDeps.remove(id);
-        });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('重新安装请求已提交'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('重新安装中'), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _installingDeps[id] = '重装失败';
-        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('重新安装失败: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('重装失败: $e'), backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  // View dependency log: GET /dependencies/{id}
-  Future<void> _viewDepLog(int id, String name) async {
-    setState(() => _loadingLogs[id] = true);
+  // PUT /deps/:id/cancel
+  Future<void> _cancelDep(int id) async {
     try {
       final authService = context.read<AuthService>();
-      final result = await authService.apiService.getDependencyLog(id);
+      await authService.apiService.cancelDepOperation(id);
+      _loadDependencies();
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // GET /deps/:id/status
+  Future<void> _viewDepLog(int id, String name) async {
+    try {
+      final authService = context.read<AuthService>();
+      final result = await authService.apiService.getDepStatus(id);
       if (mounted) {
-        setState(() => _loadingLogs.remove(id));
-        // Extract log content
-        String logContent = '';
-        final data = result['data'];
-        if (data is Map && data['log'] is List) {
-          logContent = (data['log'] as List).join('\n');
-        } else if (data is String) {
-          logContent = data;
-        } else if (result['log'] is List) {
-          logContent = (result['log'] as List).join('\n');
-        }
-        _showLogDialog(name, logContent);
+        final data = result['data'] ?? {};
+        final log = data['log'] ?? '';
+        final status = data['status'] ?? '';
+        _showLogDialog(name, log.toString(), status.toString());
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _loadingLogs.remove(id));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('获取日志失败: $e'), backgroundColor: Colors.red),
         );
@@ -213,17 +202,22 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
     }
   }
 
-  void _showLogDialog(String name, String content) {
+  void _showLogDialog(String name, String log, String status) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('$name 安装日志'),
+        title: Row(
+          children: [
+            Expanded(child: Text('$name 安装日志')),
+            _buildStatusChip(status),
+          ],
+        ),
         content: SizedBox(
           width: double.maxFinite,
           height: 400,
           child: SingleChildScrollView(
             child: SelectableText(
-              content.isEmpty ? '暂无日志' : content,
+              log.isEmpty ? '暂无日志' : log,
               style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
             ),
           ),
@@ -232,6 +226,49 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('关闭')),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatusChip(String status) {
+    Color color;
+    String text;
+    switch (status) {
+      case 'installed':
+        color = Colors.green;
+        text = '已安装';
+        break;
+      case 'installing':
+        color = Colors.orange;
+        text = '安装中';
+        break;
+      case 'queued':
+        color = Colors.blue;
+        text = '排队中';
+        break;
+      case 'failed':
+        color = Colors.red;
+        text = '失败';
+        break;
+      case 'removing':
+        color = Colors.orange;
+        text = '卸载中';
+        break;
+      case 'cancelled':
+        color = Colors.grey;
+        text = '已取消';
+        break;
+      default:
+        color = Colors.grey;
+        text = status;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color),
+      ),
+      child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
     );
   }
 
@@ -394,19 +431,16 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                _buildStatCard('Node.js', _dependencies.where((d) => (d['type'] ?? 0) == 0).length, Colors.green),
+                _buildStatCard('Node.js', _dependencies.where((d) => d['type'] == 'nodejs').length, Colors.green),
                 const SizedBox(width: 8),
-                _buildStatCard('Python', _dependencies.where((d) => (d['type'] ?? 0) == 1).length, Colors.blue),
+                _buildStatCard('Python', _dependencies.where((d) => d['type'] == 'python').length, Colors.blue),
                 const SizedBox(width: 8),
-                _buildStatCard('Linux', _dependencies.where((d) => (d['type'] ?? 0) == 2).length, Colors.orange),
+                _buildStatCard('Linux', _dependencies.where((d) => d['type'] == 'linux').length, Colors.orange),
               ],
             ),
           ),
           const SizedBox(height: 8),
-          // Dependencies list
-          Expanded(
-            child: _buildBody(filteredDeps),
-          ),
+          Expanded(child: _buildBody(filteredDeps)),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -424,6 +458,7 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
       selected: isSelected,
       onSelected: (selected) {
         setState(() => _filterType = value);
+        _loadDependencies();
       },
     );
   }
@@ -435,14 +470,7 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
           padding: const EdgeInsets.all(12),
           child: Column(
             children: [
-              Text(
-                '$count',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
+              Text('$count', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
               Text(label, style: TextStyle(color: color)),
             ],
           ),
@@ -503,73 +531,36 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
   Widget _buildDepCard(Map<String, dynamic> dep) {
     final id = dep['id'] ?? 0;
     final name = dep['name'] ?? '未知';
-    final type = dep['type'] ?? 0;
-    final status = dep['status'] ?? 0;
-    // QingLong status: 0=installing, 1=installed, 2=failed, 3=uninstalling, 5=uninstall failed
-    final createdAt = dep['createdAt'] ?? dep['created_at'] ?? '';
+    final type = dep['type'] ?? 'unknown';
+    final status = dep['status'] ?? 'unknown';
+    final createdAt = dep['created_at'] ?? '';
 
-    Color statusColor;
-    String statusText;
-    IconData statusIcon;
-    switch (status) {
-      case 0:
-        statusColor = Colors.orange;
-        statusText = '安装中';
-        statusIcon = Icons.hourglass_empty;
-        break;
-      case 1:
-        statusColor = Colors.green;
-        statusText = '已安装';
-        statusIcon = Icons.check_circle;
-        break;
-      case 2:
-        statusColor = Colors.red;
-        statusText = '安装失败';
-        statusIcon = Icons.error;
-        break;
-      case 3:
-        statusColor = Colors.orange;
-        statusText = '卸载中';
-        statusIcon = Icons.hourglass_empty;
-        break;
-      case 5:
-        statusColor = Colors.red;
-        statusText = '卸载失败';
-        statusIcon = Icons.error;
-        break;
-      default:
-        statusColor = Colors.grey;
-        statusText = '未知';
-        statusIcon = Icons.help;
-    }
+    final isInProgress = status == 'installing' || status == 'queued' || status == 'removing';
 
     Color typeColor;
     String typeText;
     IconData typeIcon;
     switch (type) {
-      case 0:
+      case 'nodejs':
         typeColor = Colors.green;
         typeText = 'Node.js';
         typeIcon = Icons.javascript;
         break;
-      case 1:
+      case 'python':
         typeColor = Colors.blue;
         typeText = 'Python';
         typeIcon = Icons.code;
         break;
-      case 2:
+      case 'linux':
         typeColor = Colors.orange;
         typeText = 'Linux';
         typeIcon = Icons.terminal;
         break;
       default:
         typeColor = Colors.grey;
-        typeText = '未知';
+        typeText = type;
         typeIcon = Icons.extension;
     }
-
-    final isInstalling = _installingDeps.containsKey(id);
-    final isLoadingLog = _loadingLogs.containsKey(id);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -585,41 +576,10 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
                 Expanded(
                   child: Text(
                     name,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: statusColor),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (isInstalling)
-                        SizedBox(
-                          width: 12,
-                          height: 12,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: statusColor),
-                        )
-                      else
-                        Icon(statusIcon, size: 14, color: statusColor),
-                      const SizedBox(width: 4),
-                      Text(
-                        isInstalling ? _installingDeps[id]! : statusText,
-                        style: TextStyle(
-                          color: statusColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                _buildStatusChip(status),
               ],
             ),
             const SizedBox(height: 4),
@@ -630,36 +590,45 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // View log button
+                // View log
                 OutlinedButton.icon(
-                  onPressed: isLoadingLog ? null : () => _viewDepLog(id, name),
-                  icon: isLoadingLog
-                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.article, size: 16),
+                  onPressed: () => _viewDepLog(id, name),
+                  icon: const Icon(Icons.article, size: 16),
                   label: const Text('日志'),
                 ),
                 const SizedBox(width: 8),
-                if (status == 0 || status == 2) ...[
-                  // Installing or failed: show reinstall
-                  FilledButton.icon(
-                    onPressed: isInstalling ? null : () => _reinstallDep(id),
-                    icon: const Icon(Icons.refresh, size: 16),
-                    label: const Text('重装'),
-                  ),
-                ],
-                if (status == 1) ...[
-                  // Installed: show reinstall and uninstall
+                if (isInProgress) ...[
+                  // Cancel button
                   OutlinedButton.icon(
-                    onPressed: isInstalling ? null : () => _reinstallDep(id),
+                    onPressed: () => _cancelDep(id),
+                    icon: const Icon(Icons.stop, size: 16),
+                    label: const Text('取消'),
+                    style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                  ),
+                  const SizedBox(width: 8),
+                  // Progress indicator
+                  const SizedBox(
+                    width: 20, height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ] else if (status == 'installed') ...[
+                  OutlinedButton.icon(
+                    onPressed: () => _reinstallDep(id),
                     icon: const Icon(Icons.refresh, size: 16),
                     label: const Text('重装'),
                   ),
                   const SizedBox(width: 8),
                   FilledButton.icon(
-                    onPressed: isInstalling ? null : () => _uninstallDep(id, name),
+                    onPressed: () => _uninstallDep(id, name),
                     icon: const Icon(Icons.delete, size: 16),
                     label: const Text('卸载'),
                     style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                  ),
+                ] else if (status == 'failed' || status == 'cancelled') ...[
+                  FilledButton.icon(
+                    onPressed: () => _reinstallDep(id),
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('重试'),
                   ),
                 ],
               ],
