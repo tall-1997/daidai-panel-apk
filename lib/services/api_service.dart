@@ -498,7 +498,7 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> updateScriptSubscription(int id, Map<String, dynamic> subscription) async {
-    final response = put('/scripts/subscriptions/$id', body: subscription);
+    final response = await put('/scripts/subscriptions/$id', body: subscription);
     return jsonDecode(response.body);
   }
 
