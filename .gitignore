@@ -28,13 +28,15 @@ Thumbs.db
 .windsurf/
 .claude/
 
-/data/
-/log/
+data/
+log/
 /scripts/
 
 "daidai-panel.exe" 
 
-# Android build files
-daidai-app/app/build/
-daidai-app/build/
-daidai-app/.gradle/
+# Flutter build
+build/
+.dart_tool/
+*.apk
+*.ipa
+ios-ipa.zip

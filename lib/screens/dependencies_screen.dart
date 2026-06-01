@@ -1,0 +1,607 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
+import 'home_screen.dart';
+
+class DependenciesScreen extends StatefulWidget {
+  const DependenciesScreen({super.key});
+
+  @override
+  State<DependenciesScreen> createState() => _DependenciesScreenState();
+}
+
+class _DependenciesScreenState extends State<DependenciesScreen> with RefreshableScreen {
+  List<Map<String, dynamic>> _dependencies = [];
+  bool _isLoading = true;
+  String? _error;
+  bool _isSelectionMode = false;
+  final Set<int> _selectedDeps = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDependencies();
+  }
+
+  @override
+  void refresh() {
+    _loadDependencies();
+  }
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _isSelectionMode = !_isSelectionMode;
+      if (!_isSelectionMode) {
+        _selectedDeps.clear();
+      }
+    });
+  }
+
+  void _toggleDepSelection(int depId) {
+    setState(() {
+      if (_selectedDeps.contains(depId)) {
+        _selectedDeps.remove(depId);
+      } else {
+        _selectedDeps.add(depId);
+      }
+    });
+  }
+
+  void _selectAllDeps() {
+    setState(() {
+      _selectedDeps.clear();
+      for (var dep in _dependencies) {
+        _selectedDeps.add(dep['id']);
+      }
+    });
+  }
+
+  Future<void> _batchDeleteDeps() async {
+    if (_selectedDeps.isEmpty) return;
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('批量卸载'),
+        content: Text('确定要卸载选中的 ${_selectedDeps.length} 个依赖吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('卸载'),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed != true) return;
+    
+    try {
+      final authService = context.read<AuthService>();
+      int successCount = 0;
+      
+      for (var depId in _selectedDeps) {
+        try {
+          await authService.apiService.uninstallDependency(depId);
+          successCount++;
+        } catch (e) {
+          // 继续卸载其他依赖
+        }
+      }
+      
+      setState(() {
+        _isSelectionMode = false;
+        _selectedDeps.clear();
+      });
+      
+      _loadDependencies();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('成功卸载 $successCount 个依赖'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('批量卸载失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _batchReinstallDeps() async {
+    if (_selectedDeps.isEmpty) return;
+    
+    try {
+      final authService = context.read<AuthService>();
+      int successCount = 0;
+      
+      for (var depId in _selectedDeps) {
+        try {
+          await authService.apiService.reinstallDependency(depId);
+          successCount++;
+        } catch (e) {
+          // 继续重装其他依赖
+        }
+      }
+      
+      setState(() {
+        _isSelectionMode = false;
+        _selectedDeps.clear();
+      });
+      
+      _loadDependencies();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('成功重装 $successCount 个依赖'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('批量重装失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadDependencies() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final authService = context.read<AuthService>();
+      final result = await authService.apiService.getDependencies();
+
+      if (result['data'] != null) {
+        setState(() {
+          _dependencies = List<Map<String, dynamic>>.from(result['data'] ?? []);
+          _isLoading = false;
+        });
+      } else if (result['deps'] != null) {
+        // 兼容不同的 API 返回格式
+        setState(() {
+          _dependencies = List<Map<String, dynamic>>.from(result['deps'] ?? []);
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _error = result['message'] ?? '获取依赖失败';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = '网络错误: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _deleteDep(int id) async {
+    try {
+      final authService = context.read<AuthService>();
+      await authService.apiService.uninstallDependency(id);
+      _loadDependencies();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('依赖已删除')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('删除失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _reinstallDep(int id) async {
+    try {
+      final authService = context.read<AuthService>();
+      await authService.apiService.reinstallDependency(id);
+      _loadDependencies();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('重新安装中')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('重装失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: _isSelectionMode 
+          ? Text('已选择 ${_selectedDeps.length} 项')
+          : const Text('依赖管理'),
+        leading: _isSelectionMode
+          ? IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: _toggleSelectionMode,
+            )
+          : null,
+        actions: [
+          if (_isSelectionMode) ...[
+            IconButton(
+              icon: const Icon(Icons.select_all),
+              onPressed: _selectAllDeps,
+              tooltip: '全选',
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _selectedDeps.isNotEmpty ? _batchReinstallDeps : null,
+              tooltip: '批量重装',
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: _selectedDeps.isNotEmpty ? _batchDeleteDeps : null,
+              tooltip: '批量卸载',
+            ),
+          ] else ...[
+            IconButton(
+              icon: const Icon(Icons.checklist),
+              onPressed: _toggleSelectionMode,
+              tooltip: '批量操作',
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _loadDependencies,
+            ),
+          ],
+        ],
+      ),
+      body: _buildBody(),
+      floatingActionButton: _isSelectionMode
+        ? null
+        : FloatingActionButton(
+            onPressed: () => _showInstallDialog(),
+            child: const Icon(Icons.add),
+          ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: Theme.of(context).colorScheme.error),
+            const SizedBox(height: 16),
+            Text(_error!),
+            const SizedBox(height: 16),
+            FilledButton(onPressed: _loadDependencies, child: const Text('重试')),
+          ],
+        ),
+      );
+    }
+
+    if (_dependencies.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.extension, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            const SizedBox(height: 16),
+            const Text('暂无依赖'),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () => _showInstallDialog(),
+              icon: const Icon(Icons.add),
+              label: const Text('安装依赖'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadDependencies,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _dependencies.length,
+        itemBuilder: (context, index) {
+          final dep = _dependencies[index];
+          final isSelected = _selectedDeps.contains(dep['id']);
+          
+          return _DependencyCard(
+            dep: dep,
+            isSelectionMode: _isSelectionMode,
+            isSelected: isSelected,
+            onSelectionChanged: () => _toggleDepSelection(dep['id']),
+            onDelete: () => _deleteDep(dep['id']),
+            onReinstall: () => _reinstallDep(dep['id']),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showInstallDialog() {
+    final nameController = TextEditingController();
+    String depType = 'nodejs';
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('安装依赖'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: depType,
+                  decoration: const InputDecoration(
+                    labelText: '依赖类型',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'nodejs', child: Text('Node.js')),
+                    DropdownMenuItem(value: 'python', child: Text('Python')),
+                    DropdownMenuItem(value: 'linux', child: Text('Linux')),
+                  ],
+                  onChanged: (value) {
+                    setDialogState(() => depType = value!);
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: '依赖名称',
+                    hintText: '例如: lodash, requests',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                if (nameController.text.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('请填写依赖名称'), backgroundColor: Colors.red),
+                  );
+                  return;
+                }
+
+                try {
+                  final authService = context.read<AuthService>();
+                  await authService.apiService.installDependency(
+                    depType,
+                    [nameController.text],
+                  );
+                  Navigator.pop(context);
+                  _loadDependencies();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('依赖安装请求已发送')),
+                    );
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('安装失败: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              },
+              child: const Text('安装'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DependencyCard extends StatelessWidget {
+  final Map<String, dynamic> dep;
+  final bool isSelectionMode;
+  final bool isSelected;
+  final VoidCallback? onSelectionChanged;
+  final VoidCallback onDelete;
+  final VoidCallback onReinstall;
+
+  const _DependencyCard({
+    required this.dep,
+    this.isSelectionMode = false,
+    this.isSelected = false,
+    this.onSelectionChanged,
+    required this.onDelete,
+    required this.onReinstall,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = dep['name'] ?? dep['package_name'] ?? '';
+    final type = dep['type'] ?? dep['dep_type'] ?? '';
+    final status = dep['status'] ?? dep['install_status'] ?? '';
+    final version = dep['version'] ?? dep['installed_version'] ?? '';
+    final installedAt = dep['installed_at'] ?? dep['installedAt'] ?? dep['created_at'] ?? '';
+    final description = dep['description'] ?? dep['desc'] ?? '';
+    final filePath = dep['file_path'] ?? dep['filePath'] ?? dep['path'] ?? dep['location'] ?? dep['install_path'] ?? '';
+
+    IconData typeIcon;
+    switch (type) {
+      case 'nodejs':
+        typeIcon = Icons.javascript;
+        break;
+      case 'python':
+        typeIcon = Icons.code;
+        break;
+      case 'linux':
+        typeIcon = Icons.terminal;
+        break;
+      default:
+        typeIcon = Icons.extension;
+    }
+
+    Color statusColor;
+    String statusText;
+    switch (status) {
+      case 'installed':
+        statusColor = Colors.green;
+        statusText = '已安装';
+        break;
+      case 'installing':
+        statusColor = Colors.orange;
+        statusText = '安装中';
+        break;
+      case 'failed':
+        statusColor = Colors.red;
+        statusText = '失败';
+        break;
+      default:
+        statusColor = Colors.grey;
+        statusText = status;
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: isSelectionMode ? onSelectionChanged : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  if (isSelectionMode)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Icon(
+                        isSelected ? Icons.check_circle : Icons.circle_outlined,
+                        color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey,
+                      ),
+                    ),
+                  Icon(typeIcon, color: Theme.of(context).colorScheme.primary, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (version.isNotEmpty)
+                          Text(
+                            '版本: $version',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.grey,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: statusColor),
+                    ),
+                    child: Text(statusText, style: TextStyle(color: statusColor, fontSize: 12)),
+                  ),
+                ],
+              ),
+              if (description.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  description,
+                  style: Theme.of(context).textTheme.bodySmall,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+              if (filePath.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.folder, size: 14, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        filePath,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey,
+                          fontSize: 11,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (installedAt.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.access_time, size: 14, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Text(
+                      '安装时间: $installedAt',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (!isSelectionMode) ...[
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      onPressed: onReinstall,
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: const Text('重装'),
+                    ),
+                    TextButton.icon(
+                      onPressed: onDelete,
+                      icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                      label: const Text('删除', style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

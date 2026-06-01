@@ -31,49 +31,34 @@ Agent 在任务执行过程中发现的条目应遵循以下格式：
 
 ## 条目
 
-[面板访问和SSH连接信息]
-- Date: 2026-05-28
-- Context: 用户提供面板访问和SSH连接配置信息
+### Flutter 项目构建配置
+- Date: 2026-06-01
+- Context: Agent 在修复呆呆面板 Flutter App 构建问题时发现
+- Category: 构建方法
+- Instructions:
+  - 项目使用 Flutter 跨平台框架，同时构建 Android APK 和 iOS IPA
+  - Android 构建需要 AGP 9、Gradle 9.1.0、Kotlin 2.3.20、compileSdk 36
+  - iOS 构建需要在 project.pbxproj 中设置 CODE_SIGNING_ALLOWED = NO 和 CODE_SIGNING_REQUIRED = NO
+  - file_picker 必须使用 v10.x 版本，v11 与 AGP 9 存在兼容性问题
+  - permission_handler 使用 v12.0.0 或更高版本
+  - build.gradle.kts 必须应用 org.jetbrains.kotlin.android 插件
+
+### GitHub Actions 发布流程
+- Date: 2026-06-01
+- Context: Agent 在配置 GitHub Actions 自动发布时发现
+- Category: 工作流协作
+- Instructions:
+  - Release 任务只在推送 tag 时触发（if: startsWith(github.ref, 'refs/tags/v')）
+  - tag 格式必须是 v*-flutter，例如 v0.0.22-flutter
+  - 构建产物包括 android-apk 和 ios-ipa 两个 artifact
+  - 发布到 GitHub Releases 后可下载 APK 和 IPA 文件
+
+### 仓库信息
+- Date: 2026-06-01
+- Context: 用户提供的仓库迁移信息
 - Category: 运维部署
 - Instructions:
-  - 面板启动后访问地址: http://127.0.0.1:5700
-  - 端口配置文件: /data/adb/daidai-panel/ports.conf
-  - 端口配置格式: PANEL_PORT=5700, SSH_PORT=22
-  - SSH连接命令: ssh root@<设备IP> -p 22
-  - SSH默认密码: 123456
-  - rootfs位置: /data/local/daidai
-  - 数据目录: /data/local/daidai/app/Dumb-Panel
-
-[App服务器配置功能]
-- Date: 2026-05-28
-- Context: 用户要求检查App服务器配置逻辑并添加服务器地址选择功能
-- Category: 开发功能
-- Instructions:
-  - App默认服务器地址: http://127.0.0.1:5700
-  - 服务器配置存储在SharedPreferences中
-  - 添加了服务器地址选择对话框
-  - 支持预设常用服务器地址和历史记录
-  - 登录页面和设置页面都可以选择服务器地址
-  - 后端API实际运行在端口5701（本地开发环境）
-
-[Android App开发进度]
-- Date: 2026-05-30
-- Context: Agent 在执行 Android App 功能开发时记录
-- Category: 开发功能
-- Instructions:
-  - 当前版本: 0.0.8
-  - APK位置: /workspace/download/daidai-app-0.0.8-debug.apk
-  - Git仓库: https://github.com/tall-1997/daidai-panel
-  - 最新commit: 6cd2811
-  - 后端运行端口: 5701
-  - 登录账号: admin/admin123
-  - 已实现功能:
-    1. 登录功能（自动登录、记住密码）
-    2. 任务列表（搜索、分页、状态显示）
-    3. 任务详情（查看/执行/停止/启用/禁用/置顶/复制/删除）
-    4. 任务创建（任务类型选择、Cron模板、脚本上传）
-    5. 环境变量管理（创建/编辑/删除/启用/禁用）
-    6. 依赖管理（安装/删除/重新安装）
-    7. 日志管理（查看/删除）
-    8. 系统设置
-  - 技术栈: Kotlin + Jetpack Compose + Hilt + Retrofit
+  - 原始仓库: https://github.com/tall-1997/daidai-panel
+  - 迁移后仓库: https://github.com/tall-1997/daidai-panel-apk
+  - Flutter 代码在 flutter-app 分支上
+  - main 分支保留原始 Kotlin 代码

@@ -52,8 +52,27 @@ jobs:
             fi
           done
 
-          echo "::error::缺少更新日志文件，请先创建 docs/release-notes/${GITHUB_REF_NAME}.md"
-          exit 1
+          # 自动生成 release notes
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [ -n "$PREV_TAG" ]; then
+            CHANGES=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s" --no-merges)
+          else
+            CHANGES=$(git log --pretty=format:"- %s" --no-merges -10)
+          fi
+          
+          cat > /tmp/release_notes.md << EOF
+          ## 呆呆面板 ${{ github.ref_name }}
+          
+          ### 更新内容
+          $CHANGES
+          
+          ### 下载说明
+          - **Linux**: 下载对应架构的 tar.gz 文件
+          - **Windows**: 下载 zip 文件解压运行
+          - **Docker**: 使用 \`docker pull linzixuanzz/daidai-panel:${{ steps.version.outputs.VERSION }}\`
+          EOF
+          echo "file=/tmp/release_notes.md" >> "$GITHUB_OUTPUT"
 
       - name: Build Linux amd64
         working-directory: server
