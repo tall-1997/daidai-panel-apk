@@ -486,6 +486,32 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
+  // Script subscription APIs
+  Future<Map<String, dynamic>> getScriptSubscriptions() async {
+    final response = await get('/scripts/subscriptions');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> addScriptSubscription(Map<String, dynamic> subscription) async {
+    final response = await post('/scripts/subscriptions', body: subscription);
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> updateScriptSubscription(int id, Map<String, dynamic> subscription) async {
+    final response = put('/scripts/subscriptions/$id', body: subscription);
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> deleteScriptSubscription(int id) async {
+    final response = await delete('/scripts/subscriptions/$id');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> syncScriptSubscription(int id) async {
+    final response = await post('/scripts/subscriptions/$id/sync');
+    return jsonDecode(response.body);
+  }
+
   // Task logs API
   Future<Map<String, dynamic>> getTaskLogs(int taskId, {int page = 1, int pageSize = 50}) async {
     final response = await get('/tasks/$taskId/logs?page=$page&page_size=$pageSize');

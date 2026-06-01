@@ -346,12 +346,22 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
+                const PopupMenuItem(
+                  value: 'subscriptions',
+                  child: ListTile(
+                    leading: Icon(Icons.rss_feed),
+                    title: Text('脚本订阅'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
               ],
               onSelected: (value) {
                 if (value == 'upload') {
                   _showUploadDialog();
                 } else if (value == 'upload_zip') {
                   _showUploadZipDialog();
+                } else if (value == 'subscriptions') {
+                  _showSubscriptionsDialog();
                 }
               },
             ),
@@ -747,6 +757,215 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
       ),
     );
   }
+
+  void _showSubscriptionsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('脚本订阅'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 400,
+          child: FutureBuilder<Map<String, dynamic>>(
+            future: context.read<AuthService>().apiService.getScriptSubscriptions(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              
+              if (snapshot.hasError) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text('加载失败: ${snapshot.error}'),
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('关闭'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              
+              final subscriptions = snapshot.data?['data'] ?? [];
+              
+              if (subscriptions.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.rss_feed, size: 48, color: Colors.grey[400]),
+                      const SizedBox(height: 16),
+                      const Text('暂无订阅'),
+                      const SizedBox(height: 8),
+                      const Text('添加订阅源获取远程脚本', style: TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                );
+              }
+              
+              return ListView.builder(
+                itemCount: subscriptions.length,
+                itemBuilder: (context, index) {
+                  final subscription = subscriptions[index];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      leading: const Icon(Icons.rss_feed, color: Colors.blue),
+                      title: Text(subscription['name'] ?? '未命名订阅'),
+                      subtitle: Text(subscription['url'] ?? ''),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.sync, color: Colors.green),
+                            onPressed: () async {
+                              try {
+                                await context.read<AuthService>().apiService
+                                    .syncScriptSubscription(subscription['id']);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('同步成功'), backgroundColor: Colors.green),
+                                );
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('同步失败: $e'), backgroundColor: Colors.red),
+                                );
+                              }
+                            },
+                            tooltip: '同步',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () async {
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('确认删除'),
+                                  content: const Text('确定要删除这个订阅吗？'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context, false),
+                                      child: const Text('取消'),
+                                    ),
+                                    FilledButton(
+                                      onPressed: () => Navigator.pop(context, true),
+                                      child: const Text('删除'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              
+                              if (confirmed == true) {
+                                try {
+                                  await context.read<AuthService>().apiService
+                                      .deleteScriptSubscription(subscription['id']);
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('删除成功'), backgroundColor: Colors.green),
+                                  );
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('删除失败: $e'), backgroundColor: Colors.red),
+                                  );
+                                }
+                              }
+                            },
+                            tooltip: '删除',
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('关闭'),
+          ),
+          FilledButton.icon(
+            onPressed: () => _showAddSubscriptionDialog(),
+            icon: const Icon(Icons.add),
+            label: const Text('添加订阅'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddSubscriptionDialog() {
+    final nameController = TextEditingController();
+    final urlController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('添加脚本订阅'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: '订阅名称',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: urlController,
+                decoration: const InputDecoration(
+                  labelText: '订阅地址',
+                  hintText: 'https://example.com/scripts.json',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              if (nameController.text.isEmpty || urlController.text.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('请填写必填项'), backgroundColor: Colors.red),
+                );
+                return;
+              }
+              
+              try {
+                await context.read<AuthService>().apiService.addScriptSubscription({
+                  'name': nameController.text,
+                  'url': urlController.text,
+                });
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('订阅已添加'), backgroundColor: Colors.green),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('添加失败: $e'), backgroundColor: Colors.red),
+                );
+              }
+            },
+            child: const Text('添加'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ScriptCard extends StatelessWidget {
@@ -849,6 +1068,14 @@ class _ScriptCard extends StatelessWidget {
                     ),
                   ),
                   const PopupMenuItem(
+                    value: 'add_to_task',
+                    child: ListTile(
+                      leading: Icon(Icons.schedule),
+                      title: Text('添加到定时任务'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  const PopupMenuItem(
                     value: 'delete',
                     child: ListTile(
                       leading: Icon(Icons.delete, color: Colors.red),
@@ -860,6 +1087,8 @@ class _ScriptCard extends StatelessWidget {
                 onSelected: (value) {
                   if (value == 'edit') {
                     onTap();
+                  } else if (value == 'add_to_task') {
+                    _addToTask(context, script);
                   } else if (value == 'delete') {
                     onDelete();
                   }
@@ -888,5 +1117,106 @@ class _ScriptCard extends StatelessWidget {
     if (name.endsWith('.json')) return Colors.purple;
     if (name.endsWith('.yaml') || name.endsWith('.yml')) return Colors.teal;
     return Colors.grey;
+  }
+
+  void _addToTask(BuildContext context, Map<String, dynamic> script) {
+    final nameController = TextEditingController(text: script['name'] ?? '');
+    final commandController = TextEditingController(text: 'python3 ${script['path']}');
+    final cronController = TextEditingController(text: '0 * * * *');
+    String taskType = 'cron';
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('添加到定时任务'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: '任务名称',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: taskType,
+                  decoration: const InputDecoration(
+                    labelText: '任务类型',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'cron', child: Text('定时任务')),
+                    DropdownMenuItem(value: 'manual', child: Text('手动触发')),
+                  ],
+                  onChanged: (value) {
+                    setDialogState(() => taskType = value!);
+                  },
+                ),
+                if (taskType == 'cron') ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: cronController,
+                    decoration: const InputDecoration(
+                      labelText: 'Cron 表达式',
+                      hintText: '0 * * * *',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                TextField(
+                  controller: commandController,
+                  decoration: const InputDecoration(
+                    labelText: '执行命令',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                if (nameController.text.isEmpty || commandController.text.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('请填写必填项'), backgroundColor: Colors.red),
+                  );
+                  return;
+                }
+
+                try {
+                  final authService = Provider.of<AuthService>(context, listen: false);
+                  await authService.apiService.createTask({
+                    'name': nameController.text,
+                    'command': commandController.text,
+                    'task_type': taskType,
+                    'cron_expression': taskType == 'cron' ? cronController.text : '',
+                    'status': 1,
+                  });
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('任务已添加'), backgroundColor: Colors.green),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('添加失败: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              },
+              child: const Text('添加'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

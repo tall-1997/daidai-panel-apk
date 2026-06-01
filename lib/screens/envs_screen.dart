@@ -607,17 +607,26 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
   }
 
   void _showEditEnvDialog(Map<String, dynamic> env) {
+    final nameController = TextEditingController(text: env['name'] ?? '');
     final valueController = TextEditingController(text: env['value'] ?? '');
     final remarksController = TextEditingController(text: env['remarks'] ?? '');
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('编辑环境变量: ${env['name']}'),
+        title: const Text('编辑环境变量'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: '变量名',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
               TextField(
                 controller: valueController,
                 decoration: const InputDecoration(
@@ -647,6 +656,7 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
               try {
                 final authService = context.read<AuthService>();
                 await authService.apiService.updateEnv(env['id'], {
+                  'name': nameController.text,
                   'value': valueController.text,
                   'remarks': remarksController.text,
                 });
