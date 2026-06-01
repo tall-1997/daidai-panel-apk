@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
@@ -19,6 +20,8 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
   String? _error;
   String _currentPath = '';
   final List<String> _pathStack = [];
+  bool _isSelectionMode = false;
+  final Set<String> _selectedScripts = {};
 
   @override
   void initState() {
@@ -29,6 +32,93 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
   @override
   void refresh() {
     _loadScripts();
+  }
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _isSelectionMode = !_isSelectionMode;
+      if (!_isSelectionMode) {
+        _selectedScripts.clear();
+      }
+    });
+  }
+
+  void _toggleScriptSelection(String scriptPath) {
+    setState(() {
+      if (_selectedScripts.contains(scriptPath)) {
+        _selectedScripts.remove(scriptPath);
+      } else {
+        _selectedScripts.add(scriptPath);
+      }
+    });
+  }
+
+  void _selectAllScripts() {
+    setState(() {
+      _selectedScripts.clear();
+      final scripts = _getFilteredScripts();
+      for (var script in scripts) {
+        _selectedScripts.add(script['path'] ?? '');
+      }
+    });
+  }
+
+  Future<void> _batchDeleteScripts() async {
+    if (_selectedScripts.isEmpty) return;
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('批量删除'),
+        content: Text('确定要删除选中的 ${_selectedScripts.length} 个脚本吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed != true) return;
+    
+    try {
+      final authService = context.read<AuthService>();
+      int successCount = 0;
+      
+      for (var scriptPath in _selectedScripts) {
+        try {
+          await authService.apiService.deleteScript(scriptPath);
+          successCount++;
+        } catch (e) {
+          // 继续删除其他脚本
+        }
+      }
+      
+      setState(() {
+        _isSelectionMode = false;
+        _selectedScripts.clear();
+      });
+      
+      _loadScripts();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('成功删除 $successCount 个脚本'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('批量删除失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Future<void> _loadScripts() async {
@@ -202,41 +292,65 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_currentPath.isEmpty ? '脚本管理' : _currentPath),
-        leading: _currentPath.isNotEmpty
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: _navigateBack,
-              )
-            : null,
+        title: _isSelectionMode 
+          ? Text('已选择 ${_selectedScripts.length} 项')
+          : Text(_currentPath.isEmpty ? '脚本管理' : _currentPath),
+        leading: _isSelectionMode
+          ? IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: _toggleSelectionMode,
+            )
+          : _currentPath.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: _navigateBack,
+                )
+              : null,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadScripts,
-          ),
-          PopupMenuButton(
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'upload',
-                child: ListTile(
-                  leading: Icon(Icons.upload_file),
-                  title: Text('上传脚本'),
-                  contentPadding: EdgeInsets.zero,
+          if (_isSelectionMode) ...[
+            IconButton(
+              icon: const Icon(Icons.select_all),
+              onPressed: _selectAllScripts,
+              tooltip: '全选',
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: _selectedScripts.isNotEmpty ? _batchDeleteScripts : null,
+              tooltip: '批量删除',
+            ),
+          ] else ...[
+            IconButton(
+              icon: const Icon(Icons.checklist),
+              onPressed: _toggleSelectionMode,
+              tooltip: '批量操作',
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _loadScripts,
+            ),
+            PopupMenuButton(
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'upload',
+                  child: ListTile(
+                    leading: Icon(Icons.upload_file),
+                    title: Text('上传脚本'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ),
-              ),
-              const PopupMenuItem(
-                value: 'upload_zip',
-                child: ListTile(
-                  leading: Icon(Icons.archive),
-                  title: Text('上传压缩包'),
-                  contentPadding: EdgeInsets.zero,
+                const PopupMenuItem(
+                  value: 'upload_zip',
+                  child: ListTile(
+                    leading: Icon(Icons.archive),
+                    title: Text('上传压缩包'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ),
-              ),
-            ],
-            onSelected: (value) {
-              if (value == 'upload') {
-                _showUploadDialog();
-              } else if (value == 'upload_zip') {
+              ],
+              onSelected: (value) {
+                if (value == 'upload') {
+                  _showUploadDialog();
+                } else if (value == 'upload_zip') {
                 _showUploadZipDialog();
               }
             },
@@ -339,10 +453,24 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
       final result = await authService.apiService.getScriptContent(script['path']);
 
       if (mounted) {
+        final content = result['data']?['content'] ?? '无法获取内容';
+        
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: Text(script['name'] ?? '脚本内容'),
+            title: Row(
+              children: [
+                Expanded(child: Text(script['name'] ?? '脚本内容')),
+                IconButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _copyScriptContent(content);
+                  },
+                  icon: const Icon(Icons.copy),
+                  tooltip: '复制内容',
+                ),
+              ],
+            ),
             content: SingleChildScrollView(
               child: Container(
                 padding: const EdgeInsets.all(12),
@@ -350,8 +478,8 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
                   color: Colors.grey[100],
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                  result['data']?['content'] ?? '无法获取内容',
+                child: SelectableText(
+                  content,
                   style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
                 ),
               ),
@@ -364,7 +492,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
               FilledButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  _editScript(script['path'], result['data']?['content'] ?? '');
+                  _editScript(script['path'], content);
                 },
                 child: const Text('编辑'),
               ),
@@ -379,6 +507,13 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
         );
       }
     }
+  }
+
+  void _copyScriptContent(String content) {
+    Clipboard.setData(ClipboardData(text: content));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('脚本内容已复制到剪贴板'), backgroundColor: Colors.green),
+    );
   }
 
   void _showCreateScriptDialog() {
@@ -451,6 +586,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
   void _showUploadDialog() {
     final nameController = TextEditingController();
     final contentController = TextEditingController();
+    bool _isUploading = false;
 
     showDialog(
       context: context,
@@ -471,7 +607,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
                 ),
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
-                  onPressed: () async {
+                  onPressed: _isUploading ? null : () async {
                     try {
                       FilePickerResult? result = await FilePicker.platform.pickFiles(
                         type: FileType.custom,
@@ -488,7 +624,6 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
                           contentController.text = content;
                         });
                       } else if (result != null && result.files.single.bytes != null) {
-                        // Web platform: use bytes instead of path
                         final bytes = result.files.single.bytes!;
                         final content = String.fromCharCodes(bytes);
                         final fileName = result.files.single.name;
@@ -523,11 +658,11 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: _isUploading ? null : () => Navigator.pop(context),
               child: const Text('取消'),
             ),
             FilledButton(
-              onPressed: () async {
+              onPressed: _isUploading ? null : () async {
                 if (nameController.text.isEmpty || contentController.text.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('请填写必填项'), backgroundColor: Colors.red),
@@ -535,28 +670,42 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
                   return;
                 }
 
+                setDialogState(() => _isUploading = true);
+                
                 try {
                   final authService = context.read<AuthService>();
                   final scriptName = _currentPath + nameController.text;
-                  await authService.apiService.createScript({
+                  final result = await authService.apiService.createScript({
                     'name': scriptName,
                     'content': contentController.text,
                     'path': scriptName,
                   });
-                  Navigator.pop(context);
-                  _loadScripts();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('脚本已上传')),
-                    );
+                  
+                  // 检查 API 返回结果
+                  if (result['code'] == 0 || result['code'] == 200 || result['success'] == true) {
+                    Navigator.pop(context);
+                    _loadScripts();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('脚本上传成功'), backgroundColor: Colors.green),
+                      );
+                    }
+                  } else {
+                    throw Exception(result['message'] ?? '上传失败');
                   }
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('上传失败: $e'), backgroundColor: Colors.red),
-                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('上传失败: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                } finally {
+                  setDialogState(() => _isUploading = false);
                 }
               },
-              child: const Text('上传'),
+              child: _isUploading 
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('上传'),
             ),
           ],
         ),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
+import 'dart:convert';
 import '../services/auth_service.dart';
 import 'home_screen.dart';
 
@@ -17,6 +19,8 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
   String? _error;
   String _searchQuery = '';
   Timer? _refreshTimer;
+  bool _isSelectionMode = false;
+  final Set<int> _selectedTasks = {};
 
   @override
   void initState() {
@@ -35,15 +39,164 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
     _loadTasks();
   }
 
-  void _startAutoRefresh() {
-    _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      if (_tasks.any((t) => t['status'] == 2)) {
-        _loadTasks(silent: true);
-      } else {
-        timer.cancel();
+  void _toggleSelectionMode() {
+    setState(() {
+      _isSelectionMode = !_isSelectionMode;
+      if (!_isSelectionMode) {
+        _selectedTasks.clear();
       }
     });
+  }
+
+  void _toggleTaskSelection(int taskId) {
+    setState(() {
+      if (_selectedTasks.contains(taskId)) {
+        _selectedTasks.remove(taskId);
+      } else {
+        _selectedTasks.add(taskId);
+      }
+    });
+  }
+
+  void _selectAllTasks() {
+    setState(() {
+      _selectedTasks.clear();
+      for (var task in _tasks) {
+        _selectedTasks.add(task['id']);
+      }
+    });
+  }
+
+  Future<void> _batchRunTasks() async {
+    if (_selectedTasks.isEmpty) return;
+    
+    try {
+      final authService = context.read<AuthService>();
+      int successCount = 0;
+      
+      for (var taskId in _selectedTasks) {
+        try {
+          await authService.apiService.runTask(taskId);
+          successCount++;
+        } catch (e) {
+          // 继续运行其他任务
+        }
+      }
+      
+      setState(() {
+        _isSelectionMode = false;
+        _selectedTasks.clear();
+      });
+      
+      _loadTasks();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('成功运行 $successCount 个任务'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('批量运行失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _batchStopTasks() async {
+    if (_selectedTasks.isEmpty) return;
+    
+    try {
+      final authService = context.read<AuthService>();
+      int successCount = 0;
+      
+      for (var taskId in _selectedTasks) {
+        try {
+          await authService.apiService.stopTask(taskId);
+          successCount++;
+        } catch (e) {
+          // 继续停止其他任务
+        }
+      }
+      
+      setState(() {
+        _isSelectionMode = false;
+        _selectedTasks.clear();
+      });
+      
+      _loadTasks();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('成功停止 $successCount 个任务'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('批量停止失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _batchDeleteTasks() async {
+    if (_selectedTasks.isEmpty) return;
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('批量删除'),
+        content: Text('确定要删除选中的 ${_selectedTasks.length} 个任务吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed != true) return;
+    
+    try {
+      final authService = context.read<AuthService>();
+      int successCount = 0;
+      
+      for (var taskId in _selectedTasks) {
+        try {
+          await authService.apiService.deleteTask(taskId);
+          successCount++;
+        } catch (e) {
+          // 继续删除其他任务
+        }
+      }
+      
+      setState(() {
+        _isSelectionMode = false;
+        _selectedTasks.clear();
+      });
+      
+      _loadTasks();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('成功删除 $successCount 个任务'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('批量删除失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Future<void> _loadTasks({bool silent = false}) async {
@@ -192,16 +345,207 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
     }
   }
 
+  Future<void> _exportTasks() async {
+    try {
+      final authService = context.read<AuthService>();
+      final result = await authService.apiService.exportTasks();
+      
+      if (result['code'] == 0 || result['code'] == 200 || result['success'] == true) {
+        final data = result['data'] ?? result['tasks'] ?? [];
+        final jsonStr = const JsonEncoder.withIndent('  ').convert(data);
+        
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('导出任务'),
+              content: SingleChildScrollView(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: SelectableText(
+                    jsonStr,
+                    style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('关闭'),
+                ),
+                FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _copyToClipboard(jsonStr);
+                  },
+                  icon: const Icon(Icons.copy),
+                  label: const Text('复制'),
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        throw Exception(result['message'] ?? '导出失败');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('导出失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _copyToClipboard(String content) {
+    Clipboard.setData(ClipboardData(text: content));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已复制到剪贴板'), backgroundColor: Colors.green),
+    );
+  }
+
+  Future<void> _importTasks() async {
+    final controller = TextEditingController();
+    
+    final jsonStr = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('导入任务'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('请粘贴任务 JSON 数据:'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                decoration: const InputDecoration(
+                  hintText: '[{"name": "任务名称", "command": "echo hello", "task_type": "cron", "cron_expression": "* * * * *"}]',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 10,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('导入'),
+          ),
+        ],
+      ),
+    );
+    
+    if (jsonStr == null || jsonStr.isEmpty) return;
+    
+    try {
+      final List<dynamic> data = jsonDecode(jsonStr);
+      final tasks = List<Map<String, dynamic>>.from(data);
+      
+      final authService = context.read<AuthService>();
+      final result = await authService.apiService.importTasks(tasks);
+      
+      if (result['code'] == 0 || result['code'] == 200 || result['success'] == true) {
+        _loadTasks();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('成功导入 ${tasks.length} 个任务'), backgroundColor: Colors.green),
+          );
+        }
+      } else {
+        throw Exception(result['message'] ?? '导入失败');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('导入失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('任务管理'),
+        title: _isSelectionMode 
+          ? Text('已选择 ${_selectedTasks.length} 项')
+          : const Text('任务管理'),
+        leading: _isSelectionMode
+          ? IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: _toggleSelectionMode,
+            )
+          : null,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadTasks,
-          ),
+          if (_isSelectionMode) ...[
+            IconButton(
+              icon: const Icon(Icons.select_all),
+              onPressed: _selectAllTasks,
+              tooltip: '全选',
+            ),
+            IconButton(
+              icon: const Icon(Icons.play_arrow),
+              onPressed: _selectedTasks.isNotEmpty ? _batchRunTasks : null,
+              tooltip: '批量运行',
+            ),
+            IconButton(
+              icon: const Icon(Icons.stop),
+              onPressed: _selectedTasks.isNotEmpty ? _batchStopTasks : null,
+              tooltip: '批量停止',
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: _selectedTasks.isNotEmpty ? _batchDeleteTasks : null,
+              tooltip: '批量删除',
+            ),
+          ] else ...[
+            PopupMenuButton(
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'export',
+                  child: ListTile(
+                    leading: Icon(Icons.upload),
+                    title: Text('导出备份'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'import',
+                  child: ListTile(
+                    leading: Icon(Icons.download),
+                    title: Text('导入备份'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+              onSelected: (value) {
+                if (value == 'export') {
+                  _exportTasks();
+                } else if (value == 'import') {
+                  _importTasks();
+                }
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.checklist),
+              onPressed: _toggleSelectionMode,
+              tooltip: '批量操作',
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _loadTasks,
+            ),
+          ],
         ],
       ),
       body: Column(
@@ -236,10 +580,12 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showCreateTaskDialog(),
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _isSelectionMode
+        ? null
+        : FloatingActionButton(
+            onPressed: () => _showCreateTaskDialog(),
+            child: const Icon(Icons.add),
+          ),
     );
   }
 
@@ -300,8 +646,13 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
         itemCount: _tasks.length,
         itemBuilder: (context, index) {
           final task = _tasks[index];
+          final isSelected = _selectedTasks.contains(task['id']);
+          
           return _TaskCard(
             task: task,
+            isSelectionMode: _isSelectionMode,
+            isSelected: isSelected,
+            onSelectionChanged: () => _toggleTaskSelection(task['id']),
             onRun: () => _runTask(task['id']),
             onStop: () => _stopTask(task['id']),
             onEnable: () => _enableTask(task['id']),
@@ -473,6 +824,9 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
 
 class _TaskCard extends StatelessWidget {
   final Map<String, dynamic> task;
+  final bool isSelectionMode;
+  final bool isSelected;
+  final VoidCallback? onSelectionChanged;
   final VoidCallback onTap;
   final VoidCallback onRun;
   final VoidCallback onStop;
@@ -482,6 +836,9 @@ class _TaskCard extends StatelessWidget {
 
   const _TaskCard({
     required this.task,
+    this.isSelectionMode = false,
+    this.isSelected = false,
+    this.onSelectionChanged,
     required this.onTap,
     required this.onRun,
     required this.onStop,
@@ -524,7 +881,7 @@ class _TaskCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
-        onTap: onTap,
+        onTap: isSelectionMode ? onSelectionChanged : onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -533,6 +890,14 @@ class _TaskCard extends StatelessWidget {
             children: [
               Row(
                 children: [
+                  if (isSelectionMode)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Icon(
+                        isSelected ? Icons.check_circle : Icons.circle_outlined,
+                        color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey,
+                      ),
+                    ),
                   if (isPinned)
                     Icon(Icons.push_pin, size: 16, color: Colors.orange),
                   if (isPinned) const SizedBox(width: 4),

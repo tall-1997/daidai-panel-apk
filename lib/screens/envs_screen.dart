@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'dart:convert';
 import '../services/auth_service.dart';
 import 'home_screen.dart';
 
@@ -14,6 +16,8 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
   List<Map<String, dynamic>> _envs = [];
   bool _isLoading = true;
   String? _error;
+  bool _isSelectionMode = false;
+  final Set<int> _selectedEnvs = {};
 
   @override
   void initState() {
@@ -24,6 +28,129 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
   @override
   void refresh() {
     _loadEnvs();
+  }
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _isSelectionMode = !_isSelectionMode;
+      if (!_isSelectionMode) {
+        _selectedEnvs.clear();
+      }
+    });
+  }
+
+  void _toggleEnvSelection(int envId) {
+    setState(() {
+      if (_selectedEnvs.contains(envId)) {
+        _selectedEnvs.remove(envId);
+      } else {
+        _selectedEnvs.add(envId);
+      }
+    });
+  }
+
+  void _selectAllEnvs() {
+    setState(() {
+      _selectedEnvs.clear();
+      for (var env in _envs) {
+        _selectedEnvs.add(env['id']);
+      }
+    });
+  }
+
+  Future<void> _batchDeleteEnvs() async {
+    if (_selectedEnvs.isEmpty) return;
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('批量删除'),
+        content: Text('确定要删除选中的 ${_selectedEnvs.length} 个环境变量吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed != true) return;
+    
+    try {
+      final authService = context.read<AuthService>();
+      int successCount = 0;
+      
+      for (var envId in _selectedEnvs) {
+        try {
+          await authService.apiService.deleteEnv(envId);
+          successCount++;
+        } catch (e) {
+          // 继续删除其他环境变量
+        }
+      }
+      
+      setState(() {
+        _isSelectionMode = false;
+        _selectedEnvs.clear();
+      });
+      
+      _loadEnvs();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('成功删除 $successCount 个环境变量'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('批量删除失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _batchToggleEnvs(bool enabled) async {
+    if (_selectedEnvs.isEmpty) return;
+    
+    try {
+      final authService = context.read<AuthService>();
+      int successCount = 0;
+      
+      for (var envId in _selectedEnvs) {
+        try {
+          await authService.apiService.toggleEnv(envId, enabled);
+          successCount++;
+        } catch (e) {
+          // 继续切换其他环境变量
+        }
+      }
+      
+      setState(() {
+        _isSelectionMode = false;
+        _selectedEnvs.clear();
+      });
+      
+      _loadEnvs();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('成功${enabled ? "启用" : "禁用"} $successCount 个环境变量'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('批量操作失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Future<void> _loadEnvs() async {
@@ -113,23 +240,216 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
     }
   }
 
+  Future<void> _exportEnvs() async {
+    try {
+      final authService = context.read<AuthService>();
+      final result = await authService.apiService.exportEnvs();
+      
+      if (result['code'] == 0 || result['code'] == 200 || result['success'] == true) {
+        final data = result['data'] ?? result['envs'] ?? [];
+        final jsonStr = const JsonEncoder.withIndent('  ').convert(data);
+        
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('导出环境变量'),
+              content: SingleChildScrollView(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: SelectableText(
+                    jsonStr,
+                    style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('关闭'),
+                ),
+                FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _copyToClipboard(jsonStr);
+                  },
+                  icon: const Icon(Icons.copy),
+                  label: const Text('复制'),
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        throw Exception(result['message'] ?? '导出失败');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('导出失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _copyToClipboard(String content) {
+    Clipboard.setData(ClipboardData(text: content));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已复制到剪贴板'), backgroundColor: Colors.green),
+    );
+  }
+
+  Future<void> _importEnvs() async {
+    final controller = TextEditingController();
+    
+    final jsonStr = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('导入环境变量'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('请粘贴环境变量 JSON 数据:'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                decoration: const InputDecoration(
+                  hintText: '[{"name": "VAR_NAME", "value": "var_value", "remarks": "备注"}]',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 10,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('导入'),
+          ),
+        ],
+      ),
+    );
+    
+    if (jsonStr == null || jsonStr.isEmpty) return;
+    
+    try {
+      final List<dynamic> data = jsonDecode(jsonStr);
+      final envs = List<Map<String, dynamic>>.from(data);
+      
+      final authService = context.read<AuthService>();
+      final result = await authService.apiService.importEnvs(envs);
+      
+      if (result['code'] == 0 || result['code'] == 200 || result['success'] == true) {
+        _loadEnvs();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('成功导入 ${envs.length} 个环境变量'), backgroundColor: Colors.green),
+          );
+        }
+      } else {
+        throw Exception(result['message'] ?? '导入失败');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('导入失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('环境变量'),
+        title: _isSelectionMode 
+          ? Text('已选择 ${_selectedEnvs.length} 项')
+          : const Text('环境变量'),
+        leading: _isSelectionMode
+          ? IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: _toggleSelectionMode,
+            )
+          : null,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadEnvs,
-          ),
+          if (_isSelectionMode) ...[
+            IconButton(
+              icon: const Icon(Icons.select_all),
+              onPressed: _selectAllEnvs,
+              tooltip: '全选',
+            ),
+            IconButton(
+              icon: const Icon(Icons.toggle_on),
+              onPressed: _selectedEnvs.isNotEmpty ? () => _batchToggleEnvs(true) : null,
+              tooltip: '批量启用',
+            ),
+            IconButton(
+              icon: const Icon(Icons.toggle_off),
+              onPressed: _selectedEnvs.isNotEmpty ? () => _batchToggleEnvs(false) : null,
+              tooltip: '批量禁用',
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: _selectedEnvs.isNotEmpty ? _batchDeleteEnvs : null,
+              tooltip: '批量删除',
+            ),
+          ] else ...[
+            PopupMenuButton(
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'export',
+                  child: ListTile(
+                    leading: Icon(Icons.upload),
+                    title: Text('导出备份'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'import',
+                  child: ListTile(
+                    leading: Icon(Icons.download),
+                    title: Text('导入备份'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+              onSelected: (value) {
+                if (value == 'export') {
+                  _exportEnvs();
+                } else if (value == 'import') {
+                  _importEnvs();
+                }
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.checklist),
+              onPressed: _toggleSelectionMode,
+              tooltip: '批量操作',
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _loadEnvs,
+            ),
+          ],
         ],
       ),
       body: _buildBody(),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showCreateEnvDialog(),
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _isSelectionMode
+        ? null
+        : FloatingActionButton(
+            onPressed: () => _showCreateEnvDialog(),
+            child: const Icon(Icons.add),
+          ),
     );
   }
 
@@ -190,8 +510,13 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
         itemCount: _envs.length,
         itemBuilder: (context, index) {
           final env = _envs[index];
+          final isSelected = _selectedEnvs.contains(env['id']);
+          
           return _EnvCard(
             env: env,
+            isSelectionMode: _isSelectionMode,
+            isSelected: isSelected,
+            onSelectionChanged: () => _toggleEnvSelection(env['id']),
             onToggle: (enabled) => _toggleEnv(env['id'], enabled),
             onDelete: () => _deleteEnv(env['id']),
             onEdit: () => _showEditEnvDialog(env),
@@ -339,12 +664,18 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
 
 class _EnvCard extends StatelessWidget {
   final Map<String, dynamic> env;
+  final bool isSelectionMode;
+  final bool isSelected;
+  final VoidCallback? onSelectionChanged;
   final Function(bool) onToggle;
   final VoidCallback onDelete;
   final VoidCallback onEdit;
 
   const _EnvCard({
     required this.env,
+    this.isSelectionMode = false,
+    this.isSelected = false,
+    this.onSelectionChanged,
     required this.onToggle,
     required this.onDelete,
     required this.onEdit,
@@ -359,65 +690,80 @@ class _EnvCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    name,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+      child: InkWell(
+        onTap: isSelectionMode ? onSelectionChanged : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  if (isSelectionMode)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Icon(
+                        isSelected ? Icons.check_circle : Icons.circle_outlined,
+                        color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey,
+                      ),
+                    ),
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                ),
-                Switch(
-                  value: enabled,
-                  onChanged: onToggle,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(8),
+                  if (!isSelectionMode)
+                    Switch(
+                      value: enabled,
+                      onChanged: onToggle,
+                    ),
+                ],
               ),
-              child: Text(
-                value,
-                style: const TextStyle(fontFamily: 'monospace'),
-              ),
-            ),
-            if (remarks.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text(
-                remarks,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey,
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  value,
+                  style: const TextStyle(fontFamily: 'monospace'),
                 ),
               ),
-            ],
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton.icon(
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.edit),
-                  label: const Text('编辑'),
-                ),
-                TextButton.icon(
-                  onPressed: onDelete,
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  label: const Text('删除', style: TextStyle(color: Colors.red)),
+              if (remarks.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  remarks,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.grey,
+                  ),
                 ),
               ],
-            ),
-          ],
+              if (!isSelectionMode) ...[
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      onPressed: onEdit,
+                      icon: const Icon(Icons.edit),
+                      label: const Text('编辑'),
+                    ),
+                    TextButton.icon(
+                      onPressed: onDelete,
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      label: const Text('删除', style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );

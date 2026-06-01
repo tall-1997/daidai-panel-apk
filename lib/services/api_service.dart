@@ -454,4 +454,53 @@ class ApiService {
     });
     return jsonDecode(response.body);
   }
+
+  // Backup and Restore APIs
+  Future<Map<String, dynamic>> exportTasks() async {
+    final response = await get('/tasks/export');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> importTasks(List<Map<String, dynamic>> tasks) async {
+    final response = await post('/tasks/import', body: {'tasks': tasks});
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> exportEnvs() async {
+    final response = await get('/envs/export');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> importEnvs(List<Map<String, dynamic>> envs) async {
+    final response = await post('/envs/import', body: {'envs': envs});
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> exportScripts() async {
+    final response = await get('/scripts/export');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> importScripts(List<Map<String, dynamic>> scripts) async {
+    final response = await post('/scripts/import', body: {'scripts': scripts});
+    return jsonDecode(response.body);
+  }
+
+  // Task logs API
+  Future<Map<String, dynamic>> getTaskLogs(int taskId, {int page = 1, int pageSize = 50}) async {
+    final response = await get('/tasks/$taskId/logs?page=$page&page_size=$pageSize');
+    return jsonDecode(response.body);
+  }
+
+  // System logs API
+  Future<Map<String, dynamic>> getSystemLogs({int page = 1, int pageSize = 50}) async {
+    final response = await get('/system/logs?page=$page&page_size=$pageSize');
+    return jsonDecode(response.body);
+  }
+
+  // Login logs API
+  Future<Map<String, dynamic>> getLoginLogs({int page = 1, int pageSize = 50}) async {
+    final response = await get('/auth/login-logs?page=$page&page_size=$pageSize');
+    return jsonDecode(response.body);
+  }
 }
