@@ -34,7 +34,6 @@ class _ConfigScreenState extends State<ConfigScreen> with RefreshableScreen {
       final authService = context.read<AuthService>();
       final api = authService.apiService;
       
-      // Load config and system info in parallel
       final results = await Future.wait([
         api.getConfig().catchError((e) => {'error': e.toString()}),
         api.getSystemInfo().catchError((e) => {'error': e.toString()}),
@@ -44,7 +43,21 @@ class _ConfigScreenState extends State<ConfigScreen> with RefreshableScreen {
       final systemInfo = results[1];
       
       setState(() {
-        _configs = config['data'] ?? [];
+        // Handle daidai-panel format: {data: {key: {value, description, ...}}}
+        final configData = config['data'];
+        if (configData is Map) {
+          _configs = configData.entries.map((e) {
+            final val = e.value;
+            if (val is Map) {
+              return {'key': e.key, 'value': val['value']?.toString() ?? '', 'description': val['description'] ?? ''};
+            }
+            return {'key': e.key, 'value': val.toString()};
+          }).toList();
+        } else if (configData is List) {
+          _configs = List<Map<String, dynamic>>.from(configData);
+        } else {
+          _configs = [];
+        }
         
         // If config is empty, try to create default config from system info
         if (_configs.isEmpty && systemInfo['data'] != null) {

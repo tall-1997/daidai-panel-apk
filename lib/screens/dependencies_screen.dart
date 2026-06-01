@@ -43,25 +43,42 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
 
     try {
       final authService = context.read<AuthService>();
-      final typeParam = _filterType == 'all' ? null : _filterType;
-      final result = await authService.apiService.getDependencies(type: typeParam);
-
-      if (mounted) {
-        List<dynamic> deps = [];
-        if (result['data'] is List) {
-          deps = result['data'];
-        } else if (result['data'] is Map && result['data']['data'] is List) {
-          deps = result['data']['data'];
+      
+      if (_filterType == 'all') {
+        // Fetch all types in parallel and merge
+        final results = await Future.wait([
+          authService.apiService.getDependencies(type: 'nodejs'),
+          authService.apiService.getDependencies(type: 'python'),
+          authService.apiService.getDependencies(type: 'linux'),
+        ]);
+        
+        if (mounted) {
+          List<dynamic> allDeps = [];
+          for (final result in results) {
+            if (result['data'] is List) {
+              allDeps.addAll(result['data']);
+            }
+          }
+          setState(() {
+            _dependencies = List<Map<String, dynamic>>.from(allDeps);
+            _isLoading = false;
+          });
         }
-
-        setState(() {
-          _dependencies = List<Map<String, dynamic>>.from(deps);
-          _isLoading = false;
-        });
-
-        // Start polling if any deps are in progress
-        _startPollIfNeeded();
+      } else {
+        final result = await authService.apiService.getDependencies(type: _filterType);
+        if (mounted) {
+          List<dynamic> deps = [];
+          if (result['data'] is List) {
+            deps = result['data'];
+          }
+          setState(() {
+            _dependencies = List<Map<String, dynamic>>.from(deps);
+            _isLoading = false;
+          });
+        }
       }
+
+      _startPollIfNeeded();
     } catch (e) {
       if (mounted) {
         setState(() {

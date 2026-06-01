@@ -12,15 +12,30 @@ class ApiService {
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    _baseUrl = prefs.getString('server_url') ?? _defaultBaseUrl;
+    _baseUrl = _normalizeUrl(prefs.getString('server_url') ?? _defaultBaseUrl);
     _accessToken = prefs.getString('access_token');
     _refreshToken = prefs.getString('refresh_token');
   }
 
   Future<void> setServerUrl(String url) async {
-    _baseUrl = url;
+    _baseUrl = _normalizeUrl(url);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('server_url', url);
+    await prefs.setString('server_url', _baseUrl!);
+  }
+
+  // Normalize URL: handle various formats for NAT traversal (花生壳 etc.)
+  String _normalizeUrl(String url) {
+    url = url.trim();
+    if (url.isEmpty) return _defaultBaseUrl;
+    // Add http:// if no protocol specified
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'http://$url';
+    }
+    // Remove trailing slash
+    if (url.endsWith('/')) {
+      url = url.substring(0, url.length - 1);
+    }
+    return url;
   }
 
   Future<void> setTokens(String accessToken, String refreshToken) async {
@@ -375,7 +390,10 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> updateScript(String path, Map<String, dynamic> script) async {
-    final response = await put('/scripts?path=$path', body: script);
+    // daidai-panel: PUT /scripts/content with body {path, content}
+    final body = Map<String, dynamic>.from(script);
+    body['path'] = path;
+    final response = await put('/scripts/content', body: body);
     return jsonDecode(response.body);
   }
 
@@ -465,14 +483,15 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
-  // Config APIs
+  // Config APIs (daidai-panel: /configs)
   Future<Map<String, dynamic>> getConfig() async {
-    final response = await get('/config');
+    final response = await get('/configs');
     return jsonDecode(response.body);
   }
 
   Future<Map<String, dynamic>> updateConfig(Map<String, dynamic> config) async {
-    final response = await put('/config', body: config);
+    // daidai-panel: PUT /configs/batch with body {configs: {key: value}}
+    final response = await put('/configs/batch', body: {'configs': config});
     return jsonDecode(response.body);
   }
 

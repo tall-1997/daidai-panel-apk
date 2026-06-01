@@ -872,22 +872,22 @@ class _TaskCard extends StatelessWidget {
     
     Color statusColor;
     String statusText;
-    switch (status) {
-      case 0:
-        statusColor = Colors.grey;
-        statusText = '禁用';
-        break;
-      case 1:
-        statusColor = Colors.green;
-        statusText = '启用';
-        break;
-      case 2:
-        statusColor = Colors.blue;
-        statusText = '运行中';
-        break;
-      default:
-        statusColor = Colors.grey;
-        statusText = '未知';
+    final statusNum = status is int ? status.toDouble() : (status ?? 0.0);
+    if (statusNum == 0) {
+      statusColor = Colors.grey;
+      statusText = '禁用';
+    } else if (statusNum == 1) {
+      statusColor = Colors.green;
+      statusText = '启用';
+    } else if (statusNum == 2) {
+      statusColor = Colors.blue;
+      statusText = '运行中';
+    } else if (statusNum > 0 && statusNum < 1) {
+      statusColor = Colors.orange;
+      statusText = '排队中';
+    } else {
+      statusColor = Colors.grey;
+      statusText = '未知';
     }
 
     return Card(
@@ -980,28 +980,28 @@ class _TaskCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   // Run button - show for enabled (1) and disabled (0) tasks
-                  if (status != 2)
+                  if (statusNum != 2)
                     IconButton(
                       icon: const Icon(Icons.play_arrow, color: Colors.green),
                       onPressed: onRun,
                       tooltip: '运行',
                     ),
                   // Stop button - only show for running tasks
-                  if (status == 2)
+                  if (statusNum == 2)
                     IconButton(
                       icon: const Icon(Icons.stop, color: Colors.red),
                       onPressed: onStop,
                       tooltip: '停止',
                     ),
                   // Enable button - only show for disabled tasks
-                  if (status == 0)
+                  if (statusNum == 0)
                     IconButton(
                       icon: const Icon(Icons.check_circle, color: Colors.blue),
                       onPressed: onEnable,
                       tooltip: '启用',
                     ),
-                  // Disable button - only show for enabled tasks
-                  if (status == 1)
+                  // Disable button - only show for enabled/running tasks
+                  if (statusNum > 0)
                     IconButton(
                       icon: const Icon(Icons.pause, color: Colors.orange),
                       onPressed: onDisable,
@@ -1117,22 +1117,22 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
 
     Color statusColor;
     String statusText;
-    switch (status) {
-      case 0:
-        statusColor = Colors.grey;
-        statusText = '禁用';
-        break;
-      case 1:
-        statusColor = Colors.green;
-        statusText = '启用';
-        break;
-      case 2:
-        statusColor = Colors.blue;
-        statusText = '运行中';
-        break;
-      default:
-        statusColor = Colors.grey;
-        statusText = '未知';
+    final statusNum = status is int ? status.toDouble() : (status ?? 0.0);
+    if (statusNum == 0) {
+      statusColor = Colors.grey;
+      statusText = '禁用';
+    } else if (statusNum == 1) {
+      statusColor = Colors.green;
+      statusText = '启用';
+    } else if (statusNum == 2) {
+      statusColor = Colors.blue;
+      statusText = '运行中';
+    } else if (statusNum > 0 && statusNum < 1) {
+      statusColor = Colors.orange;
+      statusText = '排队中';
+    } else {
+      statusColor = Colors.grey;
+      statusText = '未知';
     }
 
     return Container(
@@ -1218,13 +1218,16 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                       child: const Center(child: Text('暂无历史日志', style: TextStyle(color: Colors.grey))),
                     )
                   : Column(
-                      children: _taskLogs.map((log) => _buildLogItem(log)).toList(),
+                      children: _taskLogs.expand((log) {
+                        final logId = log['id'] ?? 0;
+                        final isSelected = _selectedLog?['id'] == logId;
+                        final items = <Widget>[_buildLogItem(log)];
+                        if (isSelected) {
+                          items.add(_buildLogDetail(log));
+                        }
+                        return items;
+                      }).toList(),
                     ),
-          // Selected log detail
-          if (_selectedLog != null) ...[
-            const SizedBox(height: 16),
-            _buildLogDetail(_selectedLog!),
-          ],
         ],
       ),
     );
@@ -1240,23 +1243,20 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
     Color statusColor;
     String statusText;
     IconData statusIcon;
-    switch (status) {
-      case 0:
-        statusColor = Colors.green;
-        statusText = '成功';
-        statusIcon = Icons.check_circle;
-        break;
-      case 1:
-        statusColor = Colors.red;
-        statusText = '失败';
-        statusIcon = Icons.error;
-        break;
-      case 2:
-        statusColor = Colors.orange;
-        statusText = '运行中';
-        statusIcon = Icons.hourglass_empty;
-        break;
-      default:
+    final logStatus = status is int ? status.toDouble() : (status ?? 0.0);
+    if (logStatus == 0) {
+      statusColor = Colors.green;
+      statusText = '成功';
+      statusIcon = Icons.check_circle;
+    } else if (logStatus == 1) {
+      statusColor = Colors.red;
+      statusText = '失败';
+      statusIcon = Icons.error;
+    } else if (logStatus == 2) {
+      statusColor = Colors.orange;
+      statusText = '运行中';
+      statusIcon = Icons.hourglass_empty;
+    } else {
         statusColor = Colors.grey;
         statusText = '未知';
         statusIcon = Icons.help;
