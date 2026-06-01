@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../theme/miuix_theme.dart';
 import 'tasks_screen.dart';
 import 'envs_screen.dart';
 import 'dependencies_screen.dart';
@@ -50,10 +51,17 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final authService = context.watch<AuthService>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_navigationItems[_selectedIndex].title),
+        title: Text(
+          _navigationItems[_selectedIndex].title,
+          style: MiuixTextStyles.title3.copyWith(
+            fontWeight: FontWeight.w500,
+            color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
+          ),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.menu),
           onPressed: () {
@@ -64,28 +72,47 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {},
-          ),
-          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _refreshCurrentScreen,
           ),
           PopupMenuButton(
+            icon: Icon(
+              Icons.more_vert,
+              color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(MiuixSpacing.cardCornerRadius),
+            ),
             itemBuilder: (context) => [
               PopupMenuItem(
-                child: ListTile(
-                  leading: const Icon(Icons.person),
-                  title: Text(authService.username ?? '用户'),
-                  contentPadding: EdgeInsets.zero,
+                enabled: false,
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: MiuixColors.primary,
+                      child: Text(
+                        (authService.username ?? 'U')[0].toUpperCase(),
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      authService.username ?? '用户',
+                      style: MiuixTextStyles.body2.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ],
                 ),
               ),
+              const PopupMenuDivider(),
               PopupMenuItem(
                 value: 1,
-                child: ListTile(
-                  leading: const Icon(Icons.logout),
-                  title: const Text('退出登录'),
-                  contentPadding: EdgeInsets.zero,
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, size: 20, color: MiuixColors.error),
+                    const SizedBox(width: 8),
+                    Text('退出登录', style: TextStyle(color: MiuixColors.error)),
+                  ],
                 ),
               ),
             ],
@@ -99,99 +126,153 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Stack(
         children: [
-          // 主内容区域
           _getSelectedScreen(),
-          // 侧边栏遮罩层
           if (_isSidebarExpanded)
             GestureDetector(
               onTap: () => setState(() => _isSidebarExpanded = false),
-              child: Container(color: Colors.black38),
+              child: Container(color: MiuixColors.windowDimming),
             ),
-          // 侧边栏
           AnimatedPositioned(
-            duration: const Duration(milliseconds: 200),
-            left: _isSidebarExpanded ? 0 : -180,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            left: _isSidebarExpanded ? 0 : -260,
             top: 0,
             bottom: 0,
-            width: 180,
+            width: 260,
             child: Material(
-              elevation: 8,
+              elevation: 0,
               child: Container(
-                color: Theme.of(context).colorScheme.surface,
+                decoration: BoxDecoration(
+                  color: isDark ? MiuixColors.darkSurfaceContainer : MiuixColors.surfaceContainer,
+                  border: Border(
+                    right: BorderSide(
+                      color: isDark ? MiuixColors.darkDividerLine : MiuixColors.dividerLine,
+                      width: 0.5,
+                    ),
+                  ),
+                ),
                 child: Column(
                   children: [
-                    // 用户信息
+                    // User header
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
                       child: Row(
                         children: [
                           CircleAvatar(
-                            radius: 16,
-                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            radius: 22,
+                            backgroundColor: MiuixColors.primary,
                             child: Text(
                               (authService.username ?? 'U')[0].toUpperCase(),
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.onPrimary,
-                                fontSize: 14,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 12),
                           Expanded(
-                            child: Text(
-                              authService.username ?? '用户',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                              overflow: TextOverflow.ellipsis,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  authService.username ?? '用户',
+                                  style: MiuixTextStyles.headline2.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '呆呆面板',
+                                  style: MiuixTextStyles.footnote1.copyWith(
+                                    color: isDark
+                                        ? MiuixColors.darkOnSurfaceContainerVariant
+                                        : MiuixColors.onSurfaceContainerVariant,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const Divider(height: 1),
-                    // 导航选项
+                    Divider(
+                      height: 1,
+                      color: isDark ? MiuixColors.darkDividerLine : MiuixColors.dividerLine,
+                    ),
+                    // Navigation items
                     Expanded(
                       child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         itemCount: _navigationItems.length,
                         itemBuilder: (context, index) {
                           final item = _navigationItems[index];
                           final isSelected = _selectedIndex == index;
 
-                          return InkWell(
-                            onTap: () => _onItemTapped(index),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Material(
                               color: isSelected
-                                  ? Theme.of(context).colorScheme.primaryContainer
-                                  : null,
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    item.icon,
-                                    size: 20,
-                                    color: isSelected
-                                        ? Theme.of(context).colorScheme.primary
-                                        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      item.title,
-                                      style: TextStyle(
-                                        fontSize: 13,
+                                  ? (isDark
+                                      ? MiuixColors.darkTertiaryContainer
+                                      : MiuixColors.tertiaryContainer)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(12),
+                              child: InkWell(
+                                onTap: () => _onItemTapped(index),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        item.icon,
+                                        size: 22,
                                         color: isSelected
-                                            ? Theme.of(context).colorScheme.primary
-                                            : Theme.of(context).colorScheme.onSurface,
-                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                            ? (isDark
+                                                ? MiuixColors.darkOnTertiaryContainer
+                                                : MiuixColors.onTertiaryContainer)
+                                            : (isDark
+                                                ? MiuixColors.darkOnSurfaceVariantSummary
+                                                : MiuixColors.onSurfaceVariantSummary),
                                       ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          item.title,
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            color: isSelected
+                                                ? (isDark
+                                                    ? MiuixColors.darkOnTertiaryContainer
+                                                    : MiuixColors.onTertiaryContainer)
+                                                : (isDark
+                                                    ? MiuixColors.darkOnSurface
+                                                    : MiuixColors.onSurface),
+                                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                ),
                               ),
                             ),
                           );
                         },
+                      ),
+                    ),
+                    // Version info
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'v0.0.34',
+                        style: MiuixTextStyles.footnote2.copyWith(
+                          color: isDark
+                              ? MiuixColors.darkOnSurfaceContainerVariant
+                              : MiuixColors.onSurfaceContainerVariant,
+                        ),
                       ),
                     ),
                   ],

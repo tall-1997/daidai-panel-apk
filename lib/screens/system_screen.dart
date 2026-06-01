@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/root/magisk_helper.dart';
+import '../theme/miuix_theme.dart';
+import '../widgets/miuix_widgets.dart';
 import 'home_screen.dart';
 
 class SystemScreen extends StatefulWidget {
@@ -97,9 +99,9 @@ class _SystemScreenState extends State<SystemScreen> with RefreshableScreen {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const MiuixLoadingState()
           : _error.isNotEmpty
-              ? Center(child: Text(_error))
+              ? MiuixErrorState(message: _error, onRetry: _loadSystemInfo)
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -121,36 +123,47 @@ class _SystemScreenState extends State<SystemScreen> with RefreshableScreen {
   }
 
   Widget _buildRootStatusCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return MiuixCard(
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: (_isRooted ? Colors.green : Colors.orange).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
               _isRooted ? Icons.check_circle : Icons.cancel,
               color: _isRooted ? Colors.green : Colors.orange,
-              size: 32,
+              size: 28,
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Root 权限',
-                    style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Root 权限',
+                  style: MiuixTextStyles.headline2.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
                   ),
-                  Text(
-                    _isRooted ? '已获取 Root 权限' : '未获取 Root 权限',
-                    style: TextStyle(
-                      color: _isRooted ? Colors.green : Colors.orange,
-                    ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _isRooted ? '已获取 Root 权限' : '未获取 Root 权限',
+                  style: MiuixTextStyles.footnote1.copyWith(
+                    color: _isRooted ? Colors.green : Colors.orange,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -163,47 +176,48 @@ class _SystemScreenState extends State<SystemScreen> with RefreshableScreen {
     final successLogs = _dashboardData['success_logs'] ?? 0;
     final failedLogs = _dashboardData['failed_logs'] ?? 0;
     final envCount = _dashboardData['env_count'] ?? 0;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.dashboard, color: Colors.blue),
-                const SizedBox(width: 8),
-                Text(
-                  '面板概览',
-                  style: Theme.of(context).textTheme.titleMedium,
+    return MiuixCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.dashboard, color: MiuixColors.primary, size: 22),
+              const SizedBox(width: 8),
+              Text(
+                '面板概览',
+                style: MiuixTextStyles.headline2.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
                 ),
-              ],
-            ),
-            const Divider(),
-            Row(
-              children: [
-                _buildStatItem('任务总数', '$taskCount', Colors.blue),
-                _buildStatItem('已启用', '$enabledTasks', Colors.green),
-                _buildStatItem('运行中', '$runningTasks', Colors.orange),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                _buildStatItem('今日日志', '$todayLogs', Colors.purple),
-                _buildStatItem('成功', '$successLogs', Colors.green),
-                _buildStatItem('失败', '$failedLogs', Colors.red),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                _buildStatItem('环境变量', '$envCount', Colors.teal),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+          Divider(color: isDark ? MiuixColors.darkDividerLine : MiuixColors.dividerLine),
+          Row(
+            children: [
+              _buildStatItem('任务总数', '$taskCount', MiuixColors.primary),
+              _buildStatItem('已启用', '$enabledTasks', Colors.green),
+              _buildStatItem('运行中', '$runningTasks', Colors.orange),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _buildStatItem('今日日志', '$todayLogs', Colors.purple),
+              _buildStatItem('成功', '$successLogs', Colors.green),
+              _buildStatItem('失败', '$failedLogs', MiuixColors.error),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _buildStatItem('环境变量', '$envCount', MiuixColors.primary),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -5,6 +5,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import '../services/auth_service.dart';
+import '../theme/miuix_theme.dart';
+import '../widgets/miuix_widgets.dart';
 import 'home_screen.dart';
 
 class TasksScreen extends StatefulWidget {
@@ -567,9 +569,9 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
             child: TextField(
               decoration: InputDecoration(
                 hintText: '搜索任务...',
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: Icon(Icons.search, color: MiuixColors.onSecondaryContainer),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(MiuixSpacing.textFieldCornerRadius),
                 ),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
@@ -603,50 +605,24 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const MiuixLoadingState();
     }
 
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 16),
-            Text(_error!),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _loadTasks,
-              child: const Text('重试'),
-            ),
-          ],
-        ),
+      return MiuixErrorState(
+        message: _error!,
+        onRetry: _loadTasks,
       );
     }
 
     if (_tasks.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.task_alt,
-              size: 64,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            const Text('暂无任务'),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () => _showCreateTaskDialog(),
-              icon: const Icon(Icons.add),
-              label: const Text('创建任务'),
-            ),
-          ],
+      return MiuixEmptyState(
+        icon: Icons.task_alt,
+        title: '暂无任务',
+        action: ElevatedButton.icon(
+          onPressed: () => _showCreateTaskDialog(),
+          icon: const Icon(Icons.add),
+          label: const Text('创建任务'),
         ),
       );
     }
@@ -867,8 +843,8 @@ class _TaskCard extends StatelessWidget {
     final cronExpression = task['cron_expression'] ?? '';
     final command = task['command'] ?? '';
     final lastRunAt = task['last_run_at'] ?? '';
-    final nextRunAt = task['next_run_at'] ?? '';
     final isPinned = task['is_pinned'] ?? false;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     
     Color statusColor;
     String statusText;
@@ -880,7 +856,7 @@ class _TaskCard extends StatelessWidget {
       statusColor = Colors.green;
       statusText = '启用';
     } else if (statusNum == 2) {
-      statusColor = Colors.blue;
+      statusColor = MiuixColors.primary;
       statusText = '运行中';
     } else if (statusNum > 0 && statusNum < 1) {
       statusColor = Colors.orange;
@@ -890,133 +866,124 @@ class _TaskCard extends StatelessWidget {
       statusText = '未知';
     }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: isSelectionMode ? onSelectionChanged : onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return MiuixCard(
+      onTap: isSelectionMode ? onSelectionChanged : onTap,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  if (isSelectionMode)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Icon(
-                        isSelected ? Icons.check_circle : Icons.circle_outlined,
-                        color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey,
-                      ),
-                    ),
-                  if (isPinned)
-                    Icon(Icons.push_pin, size: 16, color: Colors.orange),
-                  if (isPinned) const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      name,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: statusColor),
-                    ),
-                    child: Text(
-                      statusText,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(
-                    Icons.schedule,
-                    size: 16,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    taskType == 'cron' ? cronExpression : '手动触发',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '命令: $command',
-                style: Theme.of(context).textTheme.bodySmall,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (lastRunAt.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  '上次运行: $lastRunAt',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey,
+              if (isSelectionMode)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Icon(
+                    isSelected ? Icons.check_circle : Icons.circle_outlined,
+                    color: isSelected ? MiuixColors.primary : MiuixColors.disabledOnSurface,
+                    size: 22,
                   ),
                 ),
-              ],
-              const SizedBox(height: 12),
-                Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  // Run button - show for enabled (1) and disabled (0) tasks
-                  if (statusNum != 2)
-                    IconButton(
-                      icon: const Icon(Icons.play_arrow, color: Colors.green),
-                      onPressed: onRun,
-                      tooltip: '运行',
-                    ),
-                  // Stop button - only show for running tasks
-                  if (statusNum == 2)
-                    IconButton(
-                      icon: const Icon(Icons.stop, color: Colors.red),
-                      onPressed: onStop,
-                      tooltip: '停止',
-                    ),
-                  // Enable button - only show for disabled tasks
-                  if (statusNum == 0)
-                    IconButton(
-                      icon: const Icon(Icons.check_circle, color: Colors.blue),
-                      onPressed: onEnable,
-                      tooltip: '启用',
-                    ),
-                  // Disable button - only show for enabled/running tasks
-                  if (statusNum > 0)
-                    IconButton(
-                      icon: const Icon(Icons.pause, color: Colors.orange),
-                      onPressed: onDisable,
-                      tooltip: '禁用',
-                    ),
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: onDelete,
-                    tooltip: '删除',
+              if (isPinned)
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Icon(Icons.push_pin, size: 14, color: Colors.orange),
+                ),
+              Expanded(
+                child: Text(
+                  name,
+                  style: MiuixTextStyles.headline2.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
                   ),
-                ],
+                ),
+              ),
+              MiuixStatusBadge(text: statusText, color: statusColor),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(
+                Icons.schedule,
+                size: 14,
+                color: isDark
+                    ? MiuixColors.darkOnSurfaceVariantSummary
+                    : MiuixColors.onSurfaceVariantSummary,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                taskType == 'cron' ? cronExpression : '手动触发',
+                style: MiuixTextStyles.footnote1.copyWith(
+                  color: isDark
+                      ? MiuixColors.darkOnSurfaceVariantSummary
+                      : MiuixColors.onSurfaceVariantSummary,
+                ),
               ),
             ],
           ),
-        ),
+          const SizedBox(height: 4),
+          Text(
+            command,
+            style: MiuixTextStyles.footnote1.copyWith(
+              color: isDark
+                  ? MiuixColors.darkOnSurfaceVariantActions
+                  : MiuixColors.onSurfaceVariantActions,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (lastRunAt.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              '上次运行: $lastRunAt',
+              style: MiuixTextStyles.footnote2.copyWith(
+                color: isDark
+                    ? MiuixColors.darkOnSurfaceVariantActions
+                    : MiuixColors.onSurfaceVariantActions,
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (statusNum != 2)
+                _MiuixIconButton(
+                  icon: Icons.play_arrow,
+                  color: Colors.green,
+                  onPressed: onRun,
+                  tooltip: '运行',
+                ),
+              if (statusNum == 2)
+                _MiuixIconButton(
+                  icon: Icons.stop,
+                  color: MiuixColors.error,
+                  onPressed: onStop,
+                  tooltip: '停止',
+                ),
+              if (statusNum == 0)
+                _MiuixIconButton(
+                  icon: Icons.check_circle,
+                  color: MiuixColors.primary,
+                  onPressed: onEnable,
+                  tooltip: '启用',
+                ),
+              if (statusNum > 0)
+                _MiuixIconButton(
+                  icon: Icons.pause,
+                  color: Colors.orange,
+                  onPressed: onDisable,
+                  tooltip: '禁用',
+                ),
+              _MiuixIconButton(
+                icon: Icons.delete,
+                color: MiuixColors.error,
+                onPressed: onDelete,
+                tooltip: '删除',
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -1050,13 +1017,57 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
     setState(() => _isLoadingLogs = true);
     try {
       final authService = context.read<AuthService>();
-      final result = await authService.apiService.getLogs(
-        taskId: widget.task['id'],
-        pageSize: 20,
-      );
+      final taskId = widget.task['id'];
+      final status = widget.task['status'] ?? 0;
+      final statusNum = status is int ? status.toDouble() : (status ?? 0.0);
+      
+      // For running tasks, try live-logs first
+      if (statusNum == 2) {
+        try {
+          final liveResult = await authService.apiService.getTaskLiveLogs(taskId);
+          if (mounted) {
+            final logs = liveResult['logs'];
+            if (logs is List && logs.isNotEmpty) {
+              final liveContent = logs.join('\n');
+              setState(() {
+                _taskLogs = [{
+                  'id': -1,
+                  'status': 2,
+                  'content': liveContent,
+                  'created_at': widget.task['last_run_at'] ?? '',
+                }];
+                _isLoadingLogs = false;
+              });
+              return;
+            }
+          }
+        } catch (_) {
+          // Fall through to normal logs
+        }
+      }
+      
+      // Normal log list
+      final result = await authService.apiService.getLogs(taskId: taskId, pageSize: 20);
       if (mounted) {
+        final logList = List<Map<String, dynamic>>.from(result['data'] ?? result['logs'] ?? []);
+        
+        // Fetch full content for each log (content may be compressed)
+        for (int i = 0; i < logList.length && i < 10; i++) {
+          final logId = logList[i]['id'];
+          if (logId != null && (logList[i]['content'] == null || logList[i]['content'].toString().isEmpty)) {
+            try {
+              final detail = await authService.apiService.getLogById(logId);
+              if (detail['data'] != null) {
+                final detailData = detail['data'] as Map<String, dynamic>;
+                logList[i]['content'] = detailData['content'] ?? logList[i]['content'];
+                logList[i]['error'] = detailData['error'] ?? logList[i]['error'];
+              }
+            } catch (_) {}
+          }
+        }
+        
         setState(() {
-          _taskLogs = List<Map<String, dynamic>>.from(result['data'] ?? result['logs'] ?? []);
+          _taskLogs = logList;
           _isLoadingLogs = false;
         });
       }
@@ -1417,6 +1428,35 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
           ),
           Expanded(child: Text(value)),
         ],
+      ),
+    );
+  }
+}
+
+class _MiuixIconButton extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback? onPressed;
+  final String? tooltip;
+
+  const _MiuixIconButton({
+    required this.icon,
+    required this.color,
+    this.onPressed,
+    this.tooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip ?? '',
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(icon, size: 20, color: color),
+        ),
       ),
     );
   }

@@ -8,6 +8,8 @@ import '../main.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import '../services/root/magisk_helper.dart';
+import '../theme/miuix_theme.dart';
+import '../widgets/miuix_widgets.dart';
 import 'home_screen.dart';
 
 class SettingsScreen extends StatefulWidget {

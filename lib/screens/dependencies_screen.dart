@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import '../services/auth_service.dart';
+import '../theme/miuix_theme.dart';
+import '../widgets/miuix_widgets.dart';
 import 'home_screen.dart';
 
 class DependenciesScreen extends StatefulWidget {

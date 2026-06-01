@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../theme/miuix_theme.dart';
+import '../widgets/miuix_widgets.dart';
 import 'home_screen.dart';
 
 class ConfigScreen extends StatefulWidget {
@@ -103,31 +105,41 @@ class _ConfigScreenState extends State<ConfigScreen> with RefreshableScreen {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const MiuixLoadingState()
           : RefreshIndicator(
               onRefresh: _loadData,
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
                   if (_message != null)
-                    Card(
-                      color: _message!.contains('失败') ? Colors.red.shade50 : Colors.green.shade50,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            Icon(
-                              _message!.contains('失败') ? Icons.error_outline : Icons.check_circle_outline,
-                              color: _message!.contains('失败') ? Colors.red : Colors.green,
+                    MiuixCard(
+                      color: _message!.contains('失败')
+                          ? MiuixColors.errorContainer
+                          : MiuixColors.tertiaryContainer,
+                      child: Row(
+                        children: [
+                          Icon(
+                            _message!.contains('失败') ? Icons.error_outline : Icons.check_circle_outline,
+                            color: _message!.contains('失败') ? MiuixColors.error : Colors.green,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _message!,
+                              style: MiuixTextStyles.body2.copyWith(
+                                color: _message!.contains('失败')
+                                    ? MiuixColors.onErrorContainer
+                                    : MiuixColors.onTertiaryContainer,
+                              ),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text(_message!)),
-                            IconButton(
-                              icon: const Icon(Icons.close, size: 16),
-                              onPressed: () => setState(() { _message = null; }),
-                            ),
-                          ],
-                        ),
+                          ),
+                          InkWell(
+                            onTap: () => setState(() { _message = null; }),
+                            borderRadius: BorderRadius.circular(4),
+                            child: const Icon(Icons.close, size: 16),
+                          ),
+                        ],
                       ),
                     ),
                   const SizedBox(height: 16),

@@ -5,6 +5,7 @@ import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/auth_service.dart';
 import 'services/notification_service.dart';
+import 'theme/miuix_theme.dart';
 
 class ThemeProvider extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
@@ -57,20 +58,8 @@ class DaidaiApp extends StatelessWidget {
         builder: (context, themeProvider, _) => MaterialApp(
           title: '呆呆面板',
           debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.blue,
-              brightness: Brightness.light,
-            ),
-            useMaterial3: true,
-          ),
-          darkTheme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.blue,
-              brightness: Brightness.dark,
-            ),
-            useMaterial3: true,
-          ),
+          theme: buildMiuixLightTheme(),
+          darkTheme: buildMiuixDarkTheme(),
           themeMode: themeProvider.themeMode,
           home: const AppInitializer(),
         ),
@@ -100,16 +89,17 @@ class _AppInitializerState extends State<AppInitializer> {
     final authService = context.watch<AuthService>();
     
     if (!authService.isInitialized) {
-      return const Scaffold(
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.dashboard_customize, size: 80, color: Colors.blue),
-              SizedBox(height: 16),
-              Text('呆呆面板', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-              SizedBox(height: 24),
-              CircularProgressIndicator(),
+              Icon(Icons.dashboard_customize, size: 80, color: MiuixColors.primary),
+              const SizedBox(height: 16),
+              Text('呆呆面板', style: MiuixTextStyles.title2.copyWith(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 24),
+              const CircularProgressIndicator(),
             ],
           ),
         ),

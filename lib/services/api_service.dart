@@ -278,6 +278,18 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
+  Future<Map<String, dynamic>> getTaskLiveLogs(int id) async {
+    // daidai-panel: GET /tasks/:id/live-logs returns {logs: [], done: bool, status: float}
+    final response = await get('/tasks/$id/live-logs');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> getLogById(int id) async {
+    // daidai-panel: GET /logs/:id returns full log with decompressed content
+    final response = await get('/logs/$id');
+    return jsonDecode(response.body);
+  }
+
   Future<Map<String, dynamic>> getTaskStats(int id) async {
     final response = await get('/tasks/$id/stats');
     return jsonDecode(response.body);
