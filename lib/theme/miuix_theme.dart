@@ -262,12 +262,12 @@ ThemeData buildMiuixLightTheme() {
       linearTrackColor: MiuixColors.secondaryContainer,
     ),
     switchTheme: SwitchThemeData(
-      thumbColor: MaterialStateProperty.resolveWith((states) {
-        if (states.contains(MaterialState.selected)) return MiuixColors.onPrimary;
+      thumbColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) return MiuixColors.onPrimary;
         return MiuixColors.onSecondary;
       }),
-      trackColor: MaterialStateProperty.resolveWith((states) {
-        if (states.contains(MaterialState.selected)) return MiuixColors.primary;
+      trackColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) return MiuixColors.primary;
         return MiuixColors.secondary;
       }),
     ),
@@ -405,12 +405,12 @@ ThemeData buildMiuixDarkTheme() {
       linearTrackColor: MiuixColors.darkSecondaryContainer,
     ),
     switchTheme: SwitchThemeData(
-      thumbColor: MaterialStateProperty.resolveWith((states) {
-        if (states.contains(MaterialState.selected)) return MiuixColors.darkOnPrimary;
+      thumbColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) return MiuixColors.darkOnPrimary;
         return MiuixColors.darkOnSecondary;
       }),
-      trackColor: MaterialStateProperty.resolveWith((states) {
-        if (states.contains(MaterialState.selected)) return MiuixColors.darkPrimary;
+      trackColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) return MiuixColors.darkPrimary;
         return MiuixColors.darkSecondary;
       }),
     ),
