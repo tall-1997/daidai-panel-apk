@@ -74,7 +74,7 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> login(String username, String password, {String? serverUrl}) async {
+  Future<bool> login(String username, String password, {String? serverUrl, String? totpCode}) async {
     try {
       _error = null;
 
@@ -84,7 +84,20 @@ class AuthService extends ChangeNotifier {
         await prefs.setString('server_url', serverUrl);
       }
 
-      final result = await _apiService.login(username, password);
+      // Try login with or without 2FA code
+      Map<String, dynamic> result;
+      if (totpCode != null && totpCode.isNotEmpty) {
+        result = await _apiService.loginWith2FA(username, password, totpCode);
+      } else {
+        result = await _apiService.login(username, password);
+      }
+
+      // Check if 2FA is required
+      if (result['require_2fa'] == true || result['data']?['require_2fa'] == true) {
+        _error = '2FA_REQUIRED';
+        notifyListeners();
+        return false;
+      }
 
       // API returns tokens at top level, not in 'data'
       final accessToken = result['access_token'] ?? result['data']?['access_token'];
@@ -111,6 +124,53 @@ class AuthService extends ChangeNotifier {
         return true;
       } else {
         _error = result['message'] ?? '登录失败';
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _error = '网络错误: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Client login
+  Future<bool> clientLogin(String clientId, String clientSecret, {String? serverUrl}) async {
+    try {
+      _error = null;
+
+      if (serverUrl != null && serverUrl != _apiService.baseUrl) {
+        await _apiService.setServerUrl(serverUrl);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('server_url', serverUrl);
+      }
+
+      final result = await _apiService.clientLogin(clientId, clientSecret);
+
+      final accessToken = result['access_token'] ?? result['data']?['access_token'];
+      final refreshToken = result['refresh_token'] ?? result['data']?['refresh_token'];
+
+      if (accessToken != null) {
+        await _apiService.setTokens(accessToken, refreshToken ?? '');
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('username', 'Client:$clientId');
+
+        // Save account
+        final account = SavedAccount(
+          serverUrl: _apiService.baseUrl,
+          username: 'Client:$clientId',
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+        );
+        await _saveAccount(account);
+
+        _isAuthenticated = true;
+        _username = 'Client:$clientId';
+        notifyListeners();
+        return true;
+      } else {
+        _error = result['message'] ?? 'Client登录失败';
         notifyListeners();
         return false;
       }

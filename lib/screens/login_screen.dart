@@ -15,11 +15,18 @@ class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _serverController = TextEditingController();
+  final _totpController = TextEditingController();
+  final _clientIdController = TextEditingController();
+  final _clientSecretController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _obscureClientSecret = true;
   String? _loginError;
   String? _errorDetail;
   bool _showSavedAccounts = false;
+  
+  // Login mode: 'normal', 'client', '2fa'
+  String _loginMode = 'normal';
 
   @override
   void initState() {
@@ -38,6 +45,9 @@ class _LoginScreenState extends State<LoginScreen> {
     _usernameController.dispose();
     _passwordController.dispose();
     _serverController.dispose();
+    _totpController.dispose();
+    _clientIdController.dispose();
+    _clientSecretController.dispose();
     super.dispose();
   }
 
@@ -53,23 +63,84 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final authService = context.read<AuthService>();
 
-      final success = await authService.login(
-        _usernameController.text.trim(),
-        _passwordController.text,
-        serverUrl: _serverController.text.trim(),
-      );
+      if (_loginMode == 'client') {
+        // Client login
+        final success = await authService.clientLogin(
+          _clientIdController.text.trim(),
+          _clientSecretController.text,
+          serverUrl: _serverController.text.trim(),
+        );
 
-      if (mounted) {
-        setState(() => _isLoading = false);
+        if (mounted) {
+          setState(() => _isLoading = false);
 
-        if (success) {
-          // Login success
-        } else {
-          final error = authService.error ?? '登录失败';
-          setState(() {
-            _loginError = error;
-            _errorDetail = _buildErrorDetail(error);
-          });
+          if (success) {
+            // Login success
+          } else {
+            final error = authService.error ?? 'Client登录失败';
+            setState(() {
+              _loginError = error;
+              _errorDetail = _buildErrorDetail(error);
+            });
+          }
+        }
+      } else if (_loginMode == '2fa') {
+        // 2FA login
+        final success = await authService.login(
+          _usernameController.text.trim(),
+          _passwordController.text,
+          serverUrl: _serverController.text.trim(),
+          totpCode: _totpController.text.trim(),
+        );
+
+        if (mounted) {
+          setState(() => _isLoading = false);
+
+          if (success) {
+            // Login success
+          } else {
+            final error = authService.error ?? '验证失败';
+            if (error == '2FA_REQUIRED') {
+              // Stay in 2FA mode
+              setState(() {
+                _loginError = null;
+              });
+            } else {
+              setState(() {
+                _loginError = error;
+                _errorDetail = _buildErrorDetail(error);
+              });
+            }
+          }
+        }
+      } else {
+        // Normal login
+        final success = await authService.login(
+          _usernameController.text.trim(),
+          _passwordController.text,
+          serverUrl: _serverController.text.trim(),
+        );
+
+        if (mounted) {
+          setState(() => _isLoading = false);
+
+          if (success) {
+            // Login success
+          } else {
+            final error = authService.error ?? '登录失败';
+            if (error == '2FA_REQUIRED') {
+              // Switch to 2FA mode
+              setState(() {
+                _loginMode = '2fa';
+                _loginError = null;
+              });
+            } else {
+              setState(() {
+                _loginError = error;
+                _errorDetail = _buildErrorDetail(error);
+              });
+            }
+          }
         }
       }
     } catch (e) {
@@ -89,6 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
     buffer.writeln('时间: ${DateTime.now().toLocal()}');
     buffer.writeln('服务器: ${_serverController.text.trim()}');
     buffer.writeln('用户名: ${_usernameController.text.trim()}');
+    buffer.writeln('登录模式: $_loginMode');
     buffer.writeln('错误: $error');
     buffer.writeln('==================');
     return buffer.toString();
@@ -145,6 +217,14 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _showSavedAccounts = false);
   }
 
+  void _switchLoginMode(String mode) {
+    setState(() {
+      _loginMode = mode;
+      _loginError = null;
+      _errorDetail = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final authService = context.watch<AuthService>();
@@ -171,8 +251,22 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: Theme.of(context).colorScheme.onSurfaceVariant)),
                   const SizedBox(height: 32),
 
+                  // Login mode selector
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Row(
+                        children: [
+                          _buildLoginModeChip('普通登录', 'normal', Icons.person),
+                          _buildLoginModeChip('Client登录', 'client', Icons.vpn_key),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
                   // Saved accounts
-                  if (_showSavedAccounts && authService.savedAccounts.isNotEmpty) ...[
+                  if (_showSavedAccounts && authService.savedAccounts.isNotEmpty && _loginMode != 'client') ...[
                     Card(
                       child: Padding(
                         padding: const EdgeInsets.all(12),
@@ -213,6 +307,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 16),
                   ],
 
+                  // Server URL field (always visible)
                   TextFormField(
                     controller: _serverController,
                     decoration: InputDecoration(
@@ -228,37 +323,123 @@ class _LoginScreenState extends State<LoginScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _usernameController,
-                    decoration: InputDecoration(
-                      labelText: '用户名',
-                      prefixIcon: const Icon(Icons.person),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) return '请输入用户名';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _passwordController,
-                    decoration: InputDecoration(
-                      labelText: '密码',
-                      prefixIcon: const Icon(Icons.lock),
-                      suffixIcon: IconButton(
-                        icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+
+                  // Normal login fields
+                  if (_loginMode == 'normal' || _loginMode == '2fa') ...[
+                    if (_loginMode == '2fa') ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.security, color: Colors.blue, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '需要两步验证，请输入验证码',
+                                style: TextStyle(color: Colors.blue[700]),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      const SizedBox(height: 16),
+                    ],
+                    TextFormField(
+                      controller: _usernameController,
+                      decoration: InputDecoration(
+                        labelText: '用户名',
+                        prefixIcon: const Icon(Icons.person),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return '请输入用户名';
+                        return null;
+                      },
                     ),
-                    obscureText: _obscurePassword,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) return '请输入密码';
-                      return null;
-                    },
-                    onFieldSubmitted: (_) => _login(),
-                  ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _passwordController,
+                      decoration: InputDecoration(
+                        labelText: '密码',
+                        prefixIcon: const Icon(Icons.lock),
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                        ),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      obscureText: _obscurePassword,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return '请输入密码';
+                        return null;
+                      },
+                      onFieldSubmitted: _loginMode == 'normal' ? (_) => _login() : null,
+                    ),
+                    if (_loginMode == '2fa') ...[
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _totpController,
+                        decoration: InputDecoration(
+                          labelText: '验证码 (TOTP)',
+                          hintText: '6位数字验证码',
+                          prefixIcon: const Icon(Icons.pin),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(6),
+                        ],
+                        validator: (value) {
+                          if (value == null || value.isEmpty) return '请输入验证码';
+                          if (value.length != 6) return '验证码必须是6位数字';
+                          return null;
+                        },
+                        onFieldSubmitted: (_) => _login(),
+                      ),
+                    ],
+                  ],
+
+                  // Client login fields
+                  if (_loginMode == 'client') ...[
+                    TextFormField(
+                      controller: _clientIdController,
+                      decoration: InputDecoration(
+                        labelText: 'Client ID',
+                        prefixIcon: const Icon(Icons.vpn_key),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return '请输入Client ID';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _clientSecretController,
+                      decoration: InputDecoration(
+                        labelText: 'Client Secret',
+                        prefixIcon: const Icon(Icons.lock),
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscureClientSecret ? Icons.visibility_off : Icons.visibility),
+                          onPressed: () => setState(() => _obscureClientSecret = !_obscureClientSecret),
+                        ),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      obscureText: _obscureClientSecret,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return '请输入Client Secret';
+                        return null;
+                      },
+                      onFieldSubmitted: (_) => _login(),
+                    ),
+                  ],
+
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: _isLoading ? null : _login,
@@ -268,8 +449,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     child: _isLoading
                         ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Text('登录'),
+                        : Text(_loginMode == '2fa' ? '验证' : '登录'),
                   ),
+                  if (_loginMode == '2fa') ...[
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => _switchLoginMode('normal'),
+                      child: const Text('返回普通登录'),
+                    ),
+                  ],
                   if (_loginError != null) ...[
                     const SizedBox(height: 16),
                     OutlinedButton.icon(
@@ -283,7 +471,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ],
-                  if (!_showSavedAccounts && authService.savedAccounts.isNotEmpty) ...[
+                  if (!_showSavedAccounts && authService.savedAccounts.isNotEmpty && _loginMode != 'client') ...[
                     const SizedBox(height: 12),
                     TextButton.icon(
                       onPressed: () => setState(() => _showSavedAccounts = true),
@@ -293,6 +481,41 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ],
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoginModeChip(String label, String mode, IconData icon) {
+    final isSelected = _loginMode == mode || (mode == 'normal' && _loginMode == '2fa');
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: InkWell(
+          onTap: () => _switchLoginMode(mode),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected ? Theme.of(context).colorScheme.primaryContainer : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 16, color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

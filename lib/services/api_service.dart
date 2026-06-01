@@ -153,6 +153,43 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
+  // Client login (client_id + client_secret)
+  Future<Map<String, dynamic>> clientLogin(String clientId, String clientSecret) async {
+    final response = await post('/auth/client-login', body: {
+      'client_id': clientId,
+      'client_secret': clientSecret,
+    });
+    return jsonDecode(response.body);
+  }
+
+  // Two-factor authentication login
+  Future<Map<String, dynamic>> loginWith2FA(String username, String password, String totpCode) async {
+    final response = await post('/auth/login', body: {
+      'username': username,
+      'password': password,
+      'totp_code': totpCode,
+    });
+    return jsonDecode(response.body);
+  }
+
+  // Get TOTP setup info (for enabling 2FA)
+  Future<Map<String, dynamic>> getTOTPSetup() async {
+    final response = await get('/auth/totp/setup');
+    return jsonDecode(response.body);
+  }
+
+  // Verify and enable TOTP
+  Future<Map<String, dynamic>> verifyAndEnableTOTP(String code) async {
+    final response = await post('/auth/totp/verify', body: {'code': code});
+    return jsonDecode(response.body);
+  }
+
+  // Disable TOTP
+  Future<Map<String, dynamic>> disableTOTP(String code) async {
+    final response = await post('/auth/totp/disable', body: {'code': code});
+    return jsonDecode(response.body);
+  }
+
   // Task APIs
   Future<Map<String, dynamic>> getTasks({int page = 1, int pageSize = 20, String? search, String? status}) async {
     String path = '/tasks?page=$page&page_size=$pageSize';

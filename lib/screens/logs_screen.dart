@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:convert';
 import '../services/auth_service.dart';
 import 'home_screen.dart';
 
@@ -505,6 +506,50 @@ class _LogDetailSheet extends StatelessWidget {
     required this.scrollController,
   });
 
+  // Clean content: remove ANSI escape sequences and handle encoding issues
+  String _cleanContent(dynamic rawContent) {
+    if (rawContent == null) return '';
+    
+    String content = rawContent.toString();
+    
+    // Try to decode base64 if it looks like base64
+    if (_isBase64(content)) {
+      try {
+        final decoded = String.fromCharCodes(base64Decode(content));
+        content = decoded;
+      } catch (e) {
+        // If decoding fails, use original content
+      }
+    }
+    
+    // Remove ANSI escape sequences (terminal color codes)
+    content = content.replaceAll(RegExp(r'\x1B\[[0-9;]*[a-zA-Z]'), '');
+    
+    // Remove other common control characters but keep newlines and tabs
+    content = content.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'), '');
+    
+    // Fix common encoding issues
+    content = content
+        .replaceAll('â€™', "'")
+        .replaceAll('â€œ', '"')
+        .replaceAll('â€', '"')
+        .replaceAll('Ã©', 'e')
+        .replaceAll('Ã¨', 'e')
+        .replaceAll('Ã ', 'a')
+        .replaceAll('Ã¡', 'a')
+        .replaceAll('Ã³', 'o')
+        .replaceAll('Ã±', 'n');
+    
+    return content.trim();
+  }
+
+  bool _isBase64(String str) {
+    // Check if string looks like base64
+    if (str.length < 4) return false;
+    final base64Regex = RegExp(r'^[A-Za-z0-9+/]*={0,2}$');
+    return base64Regex.hasMatch(str) && str.length % 4 == 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final taskName = log['task_name'] ?? log['taskName'] ?? '未知任务';
@@ -598,7 +643,7 @@ class _LogDetailSheet extends StatelessWidget {
           _buildDetailRow('开始时间', startedAt.isEmpty ? '无' : startedAt),
           _buildDetailRow('结束时间', endedAt.isEmpty ? '无' : endedAt),
           _buildDetailRow('执行耗时', durationText.isEmpty ? '无' : durationText),
-          if (errorMsg.isNotEmpty) _buildDetailRow('错误信息', errorMsg),
+          if (errorMsg.isNotEmpty) _buildDetailRow('错误信息', _cleanContent(errorMsg)),
           const Divider(height: 32),
           Text(
             '执行日志',
@@ -614,7 +659,7 @@ class _LogDetailSheet extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
             child: SelectableText(
-              content.isEmpty ? '无日志内容' : content,
+              _cleanContent(content).isEmpty ? '无日志内容' : _cleanContent(content),
               style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
             ),
           ),

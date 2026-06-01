@@ -22,6 +22,8 @@ class _TerminalScreenState extends State<TerminalScreen> with RefreshableScreen 
   bool _isExecuting = false;
   bool _isWebSocketConnected = false;
   StreamSubscription? _wsSubscription;
+  bool _executeInContainer = true; // Default to container execution
+  String _selectedContainer = 'default'; // Container name/ID
 
   @override
   void initState() {
@@ -104,6 +106,7 @@ class _TerminalScreenState extends State<TerminalScreen> with RefreshableScreen 
         'output': '',
         'timestamp': DateTime.now().toString(),
         'startTime': DateTime.now().millisecondsSinceEpoch,
+        'inContainer': _executeInContainer,
       });
       _isExecuting = true;
       _commandController.clear();
@@ -115,7 +118,16 @@ class _TerminalScreenState extends State<TerminalScreen> with RefreshableScreen 
       final authService = context.read<AuthService>();
       final api = authService.apiService;
 
-      final response = await api.post('/system/execute', body: {'command': command});
+      // Choose API endpoint based on execution mode
+      final endpoint = _executeInContainer 
+          ? '/system/execute-in-container' 
+          : '/system/execute';
+      
+      final body = _executeInContainer 
+          ? {'command': command, 'container': _selectedContainer}
+          : {'command': command};
+
+      final response = await api.post(endpoint, body: body);
 
       if (mounted) {
         final endTime = DateTime.now().millisecondsSinceEpoch;
@@ -160,6 +172,44 @@ class _TerminalScreenState extends State<TerminalScreen> with RefreshableScreen 
       appBar: AppBar(
         title: const Text('在线终端'),
         actions: [
+          // Execution mode toggle
+          Tooltip(
+            message: _executeInContainer ? '容器内执行' : '宿主机执行',
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: _executeInContainer ? Colors.blue[700] : Colors.orange[700],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: InkWell(
+                onTap: () {
+                  setState(() => _executeInContainer = !_executeInContainer);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(_executeInContainer ? '切换到容器内执行' : '切换到宿主机执行'),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _executeInContainer ? Icons.inventory_2 : Icons.computer,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _executeInContainer ? '容器' : '宿主机',
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           // Command count badge
           if (_output.isNotEmpty)
             Center(
@@ -266,6 +316,10 @@ class _TerminalScreenState extends State<TerminalScreen> with RefreshableScreen 
                             // Command header
                             Row(
                               children: [
+                                Text(
+                                  item['inContainer'] == true ? '🐳 ' : '💻 ',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
                                 const Text('\$ ', style: TextStyle(color: Colors.green, fontFamily: 'monospace')),
                                 Expanded(
                                   child: Text(
