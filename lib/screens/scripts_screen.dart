@@ -351,10 +351,11 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
                 if (value == 'upload') {
                   _showUploadDialog();
                 } else if (value == 'upload_zip') {
-                _showUploadZipDialog();
-              }
-            },
-          ),
+                  _showUploadZipDialog();
+                }
+              },
+            ),
+          ],
         ],
       ),
       body: _buildBody(),

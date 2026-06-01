@@ -199,6 +199,17 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
     }
   }
 
+  void _startAutoRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (_tasks.any((t) => t['status'] == 2)) {
+        _loadTasks(silent: true);
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
   Future<void> _loadTasks({bool silent = false}) async {
     if (!silent) {
       setState(() {

@@ -125,7 +125,11 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
       
       for (var envId in _selectedEnvs) {
         try {
-          await authService.apiService.toggleEnv(envId, enabled);
+          if (enabled) {
+            await authService.apiService.enableEnv(envId);
+          } else {
+            await authService.apiService.disableEnv(envId);
+          }
           successCount++;
         } catch (e) {
           // 继续切换其他环境变量
