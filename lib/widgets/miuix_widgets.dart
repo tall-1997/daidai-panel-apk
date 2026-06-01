@@ -255,6 +255,8 @@ class MiuixFormatUtils {
 }
 
 // ==================== Existing Widgets ====================
+
+class MiuixCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
   final VoidCallback? onTap;
