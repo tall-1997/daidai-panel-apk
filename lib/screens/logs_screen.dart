@@ -506,51 +506,35 @@ class _LogDetailSheet extends StatelessWidget {
     required this.scrollController,
   });
 
-  // Clean content: remove ANSI escape sequences and handle encoding issues
+  // Clean content: remove ANSI escape sequences and control characters
   String _cleanContent(dynamic rawContent) {
     if (rawContent == null) return '';
     
     String content = rawContent.toString();
     
     // Try to decode base64 if it looks like base64
-    if (_isBase64(content)) {
+    if (_isBase64(content) && content.length > 8) {
       try {
         final decoded = utf8.decode(base64Decode(content), allowMalformed: true);
-        content = decoded;
-      } catch (e) {
-        // If decoding fails, try latin1 decode
-        try {
-          final decoded = String.fromCharCodes(base64Decode(content));
+        if (decoded.isNotEmpty && !_isGarbled(decoded)) {
           content = decoded;
-        } catch (e2) {
-          // Use original content
         }
-      }
-    }
-    
-    // Try to fix garbled text by detecting and re-encoding
-    if (_isGarbled(content)) {
-      try {
-        // Try to interpret as latin1 and convert to utf8
-        final bytes = content.codeUnits;
-        content = utf8.decode(bytes, allowMalformed: true);
       } catch (e) {
-        // If conversion fails, keep original
+        // Use original content
       }
     }
     
-    // Remove ANSI escape sequences (terminal color codes)
-    content = content.replaceAll(RegExp(r'\x1B\[[0-9;]*[a-zA-Z]'), '');
-    content = content.replaceAll(RegExp(r'\x1B\][^\x07]*\x07'), '');
-    content = content.replaceAll(RegExp(r'\x1B\[[\d;]*[HfABCDEFGJKSTsu]'), '');
-    // Remove ANSI codes without ESC prefix (e.g. [32m, [0m from stored logs)
-    content = content.replaceAll(RegExp(r'\[(?:\d+;)*\d+m'), '');
-    
-    // Remove other common control characters but keep newlines and tabs
+    // Comprehensive ANSI escape sequence removal
+    // Matches ESC[ followed by any number of params and a command letter
+    content = content.replaceAll(RegExp(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])'), '');
+    // OSC sequences: ESC] ... BEL
+    content = content.replaceAll(RegExp(r'\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)'), '');
+    // CSI sequences without ESC prefix (stored logs may have lost ESC byte)
+    content = content.replaceAll(RegExp(r'\[(?:\d+;)*\d+[A-Za-z]'), '');
+    // Remove bare [32m, [0m etc (common in stored terminal output)
+    content = content.replaceAll(RegExp(r'\[\d+m'), '');
+    // Remove other control characters but keep newlines (\n=0x0A) and tabs (\t=0x09)
     content = content.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'), '');
-    
-    // Fix common UTF-8 encoding issues (double encoding)
-    content = _fixDoubleEncoding(content);
     
     return content.trim();
   }
@@ -562,46 +546,15 @@ class _LogDetailSheet extends StatelessWidget {
   }
 
   bool _isGarbled(String str) {
-    // Check for common garbled patterns
-    final garbledPatterns = [
-      'â€™', 'â€œ', 'â€', 'Ã©', 'Ã¨', 'Ã ', 'Ã¡', 'Ã³', 'Ã±',
-      'æ', 'è', 'ä', 'å', 'ç', 'ð', 'ñ', 'ò', 'ó',
-    ];
-    for (final pattern in garbledPatterns) {
-      if (str.contains(pattern)) return true;
+    // Quick check: if string has many non-printable/non-CJK chars, it's garbled
+    int garbledCount = 0;
+    for (int i = 0; i < str.length && i < 100; i++) {
+      final code = str.codeUnitAt(i);
+      if (code > 127 && code < 0x4E00) {
+        garbledCount++;
+      }
     }
-    return false;
-  }
-
-  String _fixDoubleEncoding(String str) {
-    // Fix common double-encoded UTF-8 sequences
-    final replacements = {
-      'â€™': "'",
-      'â€œ': '"',
-      'â€': '"',
-      'Ã©': 'é',
-      'Ã¨': 'è',
-      'Ã ': 'à',
-      'Ã¡': 'á',
-      'Ã³': 'ó',
-      'Ã±': 'ñ',
-      'Ã¼': 'ü',
-      'Ã¶': 'ö',
-      'Ã¤': 'ä',
-      'Ã¢': 'â',
-      'Ã®': 'î',
-      'Ã´': 'ô',
-      'Ã»': 'û',
-      'Ãù': 'ù',
-      'Ã€': 'À',
-      'Ã‰': 'É',
-    };
-    
-    for (final entry in replacements.entries) {
-      str = str.replaceAll(entry.key, entry.value);
-    }
-    
-    return str;
+    return garbledCount > 20;
   }
 
   @override

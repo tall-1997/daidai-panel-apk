@@ -58,7 +58,7 @@ class ApiService {
     return response;
   }
 
-  Future<http.Response> post(String path, {Map<String, dynamic>? body}) async {
+  Future<http.Response> post(String path, {dynamic body}) async {
     final uri = Uri.parse('$baseUrl/api/v1$path');
     final response = await http.post(
       uri,
@@ -80,7 +80,7 @@ class ApiService {
     return response;
   }
 
-  Future<http.Response> put(String path, {Map<String, dynamic>? body}) async {
+  Future<http.Response> put(String path, {dynamic body}) async {
     final uri = Uri.parse('$baseUrl/api/v1$path');
     final response = await http.put(
       uri,
@@ -415,42 +415,60 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
-  // Dependency APIs
-  Future<Map<String, dynamic>> getDependencies() async {
-    final response = await get('/deps');
+  // Dependency APIs (QingLong Panel standard: /dependencies)
+  Future<Map<String, dynamic>> getDependencies({String? type}) async {
+    String path = '/dependencies';
+    if (type != null && type.isNotEmpty && type != 'all') {
+      path += '?type=$type';
+    }
+    final response = await get(path);
     return jsonDecode(response.body);
   }
 
   Future<Map<String, dynamic>> installDependency(String type, List<String> names) async {
-    final response = await post('/deps', body: {
-      'type': type,
-      'names': names,
-    });
+    // QingLong format: POST /dependencies with body [{name, type}]
+    // type: 0=nodejs, 1=python3, 2=linux
+    int typeCode = 0;
+    switch (type.toLowerCase()) {
+      case 'python': typeCode = 1; break;
+      case 'linux': typeCode = 2; break;
+      default: typeCode = 0;
+    }
+    final List<Map<String, dynamic>> body = names.map((name) => {
+      'name': name,
+      'type': typeCode,
+    }).toList();
+    final response = await post('/dependencies', body: body);
     return jsonDecode(response.body);
   }
 
   Future<Map<String, dynamic>> uninstallDependency(int id) async {
-    final response = await delete('/deps/$id');
+    // QingLong: DELETE /dependencies/force with body [id]
+    final uri = Uri.parse('$baseUrl/api/v1/dependencies/force');
+    final response = await http.delete(uri, headers: _headers, body: jsonEncode([id]));
     return jsonDecode(response.body);
   }
 
   Future<Map<String, dynamic>> reinstallDependency(int id) async {
-    final response = await put('/deps/$id/reinstall');
+    // QingLong: PUT /dependencies/reinstall with body [id]
+    final response = await put('/dependencies/reinstall', body: [id]);
     return jsonDecode(response.body);
   }
 
-  Future<Map<String, dynamic>> getDepStatus(int id) async {
-    final response = await get('/deps/$id/status');
+  Future<Map<String, dynamic>> getDependencyLog(int id) async {
+    // QingLong: GET /dependencies/{id} returns {data: {log: [...]}}
+    final response = await get('/dependencies/$id');
     return jsonDecode(response.body);
   }
 
   Future<Map<String, dynamic>> batchDeleteDeps(List<int> ids) async {
-    final response = await post('/deps/batch-delete', body: {'ids': ids});
+    final uri = Uri.parse('$baseUrl/api/v1/dependencies/force');
+    final response = await http.delete(uri, headers: _headers, body: jsonEncode(ids));
     return jsonDecode(response.body);
   }
 
   Future<Map<String, dynamic>> batchReinstallDeps(List<int> ids) async {
-    final response = await post('/deps/batch-reinstall', body: {'ids': ids});
+    final response = await put('/dependencies/reinstall', body: ids);
     return jsonDecode(response.body);
   }
 
