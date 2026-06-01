@@ -97,12 +97,6 @@ class _ConfigScreenState extends State<ConfigScreen> with RefreshableScreen {
     return Scaffold(
       appBar: AppBar(
         title: const Text('配置管理'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadData,
-          ),
-        ],
       ),
       body: _isLoading
           ? const MiuixLoadingState()

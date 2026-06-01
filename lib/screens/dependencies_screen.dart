@@ -424,13 +424,6 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
     return Scaffold(
       appBar: AppBar(
         title: const Text('依赖管理'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadDependencies,
-            tooltip: '刷新',
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -550,39 +543,24 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
 
   Widget _buildBody(List<Map<String, dynamic>> deps) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const MiuixLoadingState();
     }
 
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: Theme.of(context).colorScheme.error),
-            const SizedBox(height: 16),
-            Text(_error!),
-            const SizedBox(height: 16),
-            FilledButton(onPressed: _loadDependencies, child: const Text('重试')),
-          ],
-        ),
+      return MiuixErrorState(
+        message: _error!,
+        onRetry: _loadDependencies,
       );
     }
 
     if (deps.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.extension_off, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
-            const SizedBox(height: 16),
-            const Text('暂无依赖'),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: _showInstallDialog,
-              icon: const Icon(Icons.add),
-              label: const Text('安装依赖'),
-            ),
-          ],
+      return MiuixEmptyState(
+        icon: Icons.extension_off,
+        title: '暂无依赖',
+        action: ElevatedButton.icon(
+          onPressed: _showInstallDialog,
+          icon: const Icon(Icons.add),
+          label: const Text('安装依赖'),
         ),
       );
     }

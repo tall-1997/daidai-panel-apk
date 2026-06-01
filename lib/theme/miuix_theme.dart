@@ -96,6 +96,7 @@ class MiuixTextStyles {
   static const subtitle = TextStyle(fontSize: 14, fontWeight: FontWeight.w700);
   static const footnote1 = TextStyle(fontSize: 13, fontWeight: FontWeight.normal);
   static const footnote2 = TextStyle(fontSize: 11, fontWeight: FontWeight.normal);
+  static const monospace = TextStyle(fontFamily: 'monospace', fontSize: 12);
 }
 
 class MiuixSpacing {

@@ -91,12 +91,6 @@ class _SystemScreenState extends State<SystemScreen> with RefreshableScreen {
     return Scaffold(
       appBar: AppBar(
         title: const Text('系统信息'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadSystemInfo,
-          ),
-        ],
       ),
       body: _isLoading
           ? const MiuixLoadingState()

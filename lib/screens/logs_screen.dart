@@ -313,10 +313,6 @@ class _LogsScreenState extends State<LogsScreen> with RefreshableScreen {
               onPressed: _toggleSelectionMode,
               tooltip: '批量操作',
             ),
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: () => _loadLogs(),
-            ),
           ],
         ],
       ),
@@ -403,45 +399,20 @@ class _LogsScreenState extends State<LogsScreen> with RefreshableScreen {
 
   Widget _buildBody(List<Map<String, dynamic>> filteredLogs) {
     if (_isLoading && _logs.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const MiuixLoadingState();
     }
 
     if (_error != null && _logs.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 16),
-            Text(_error!),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: () => _loadLogs(),
-              child: const Text('重试'),
-            ),
-          ],
-        ),
+      return MiuixErrorState(
+        message: _error!,
+        onRetry: () => _loadLogs(),
       );
     }
 
     if (filteredLogs.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.article,
-              size: 64,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            const Text('暂无日志'),
-          ],
-        ),
+      return const MiuixEmptyState(
+        icon: Icons.article,
+        title: '暂无日志',
       );
     }
 
@@ -687,67 +658,7 @@ class _LogDetailSheet extends StatelessWidget {
   });
 
   // Clean content: remove ANSI escape sequences and control characters
-  String _cleanContent(dynamic rawContent) {
-    if (rawContent == null) return '';
-    
-    String content = rawContent.toString();
-    
-    // Try to decode compressed/encoded content
-    if (content.length > 8 && RegExp(r'^[A-Za-z0-9+/=\s]+$').hasMatch(content.trim())) {
-      try {
-        final bytes = base64Decode(content.trim());
-        content = _decompressBytes(bytes);
-      } catch (e) {
-        // Not valid base64, use as-is
-      }
-    }
-    
-    // Remove ANSI escape sequences
-    content = _stripAnsi(content);
-    
-    return content.trim();
-  }
-
-  // Try multiple decompression methods on raw bytes
-  String _decompressBytes(List<int> bytes) {
-    // Check gzip magic (1f 8b)
-    if (bytes.length > 2 && bytes[0] == 0x1f && bytes[1] == 0x8b) {
-      try {
-        return utf8.decode(gzip.decode(bytes), allowMalformed: true);
-      } catch (_) {}
-    }
-    // Check zlib magic (78 01/5e/9c/da)
-    if (bytes.length > 2 && bytes[0] == 0x78) {
-      try {
-        return utf8.decode(zlib.decode(bytes), allowMalformed: true);
-      } catch (_) {}
-    }
-    // Try zlib anyway (some data has no magic)
-    try {
-      return utf8.decode(zlib.decode(bytes), allowMalformed: true);
-    } catch (_) {}
-    // Try gzip anyway
-    try {
-      return utf8.decode(gzip.decode(bytes), allowMalformed: true);
-    } catch (_) {}
-    // Fallback: raw UTF-8
-    return utf8.decode(bytes, allowMalformed: true);
-  }
-
-  // Comprehensive ANSI escape sequence removal
-  String _stripAnsi(String str) {
-    // ESC sequences with ESC prefix
-    str = str.replaceAll(RegExp(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])'), '');
-    // OSC sequences
-    str = str.replaceAll(RegExp(r'\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)'), '');
-    // CSI sequences without ESC prefix (stored logs may have lost ESC byte)
-    str = str.replaceAll(RegExp(r'\[(?:\d+;)*\d+[A-Za-z]'), '');
-    // Remove bare [32m, [0m etc
-    str = str.replaceAll(RegExp(r'\[\d+m'), '');
-    // Remove control characters except newline and tab
-    str = str.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'), '');
-    return str;
-  }
+  String _cleanContent(dynamic rawContent) => MiuixLogUtils.cleanContent(rawContent?.toString());
 
   @override
   Widget build(BuildContext context) {
@@ -835,14 +746,14 @@ class _LogDetailSheet extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 24),
-          _buildDetailRow('日志ID', logId.toString()),
-          _buildDetailRow('任务ID', taskId.toString()),
-          _buildDetailRow('任务类型', taskType),
-          _buildDetailRow('创建时间', createdAt),
-          _buildDetailRow('开始时间', startedAt.isEmpty ? '无' : startedAt),
-          _buildDetailRow('结束时间', endedAt.isEmpty ? '无' : endedAt),
-          _buildDetailRow('执行耗时', durationText.isEmpty ? '无' : durationText),
-          if (errorMsg.isNotEmpty) _buildDetailRow('错误信息', _cleanContent(errorMsg)),
+          MiuixDetailRow(label: '日志ID', value: logId.toString(), labelWidth: 80),
+          MiuixDetailRow(label: '任务ID', value: taskId.toString(), labelWidth: 80),
+          MiuixDetailRow(label: '任务类型', value: taskType, labelWidth: 80),
+          MiuixDetailRow(label: '创建时间', value: createdAt, labelWidth: 80),
+          MiuixDetailRow(label: '开始时间', value: startedAt.isEmpty ? '无' : startedAt, labelWidth: 80),
+          MiuixDetailRow(label: '结束时间', value: endedAt.isEmpty ? '无' : endedAt, labelWidth: 80),
+          MiuixDetailRow(label: '执行耗时', value: durationText.isEmpty ? '无' : durationText, labelWidth: 80),
+          if (errorMsg.isNotEmpty) MiuixDetailRow(label: '错误信息', value: _cleanContent(errorMsg), labelWidth: 80),
           const Divider(height: 32),
           Text(
             '执行日志',
@@ -859,31 +770,9 @@ class _LogDetailSheet extends StatelessWidget {
             ),
             child: SelectableText(
               _cleanContent(content).isEmpty ? '无日志内容' : _cleanContent(content),
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              style: MiuixTextStyles.monospace,
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-              ),
-            ),
-          ),
-          Expanded(child: Text(value.isEmpty ? '无' : value)),
         ],
       ),
     );

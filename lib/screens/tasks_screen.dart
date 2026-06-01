@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import '../services/auth_service.dart';
 import '../theme/miuix_theme.dart';
 import '../widgets/miuix_widgets.dart';
@@ -447,7 +446,7 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
                   ),
                   child: SelectableText(
                     jsonStr,
-                    style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                    style: MiuixTextStyles.monospace,
                   ),
                 ),
               ),
@@ -780,10 +779,6 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
               icon: const Icon(Icons.checklist),
               onPressed: _toggleSelectionMode,
               tooltip: '批量操作',
-            ),
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _loadTasks,
             ),
           ],
         ],
@@ -1503,36 +1498,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
     }
   }
 
-  String _cleanLogContent(dynamic content) {
-    if (content == null) return '';
-    String str = content.toString();
-
-    if (str.length > 8 && RegExp(r'^[A-Za-z0-9+/=\s]+$').hasMatch(str.trim())) {
-      try {
-        final bytes = base64Decode(str.trim());
-        str = _decompressBytes(bytes);
-      } catch (e) {}
-    }
-
-    str = str.replaceAll(RegExp(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])'), '');
-    str = str.replaceAll(RegExp(r'\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)'), '');
-    str = str.replaceAll(RegExp(r'\[(?:\d+;)*\d+[A-Za-z]'), '');
-    str = str.replaceAll(RegExp(r'\[\d+m'), '');
-    str = str.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'), '');
-    return str.trim();
-  }
-
-  String _decompressBytes(List<int> bytes) {
-    if (bytes.length > 2 && bytes[0] == 0x1f && bytes[1] == 0x8b) {
-      try { return utf8.decode(gzip.decode(bytes), allowMalformed: true); } catch (_) {}
-    }
-    if (bytes.length > 2 && bytes[0] == 0x78) {
-      try { return utf8.decode(zlib.decode(bytes), allowMalformed: true); } catch (_) {}
-    }
-    try { return utf8.decode(zlib.decode(bytes), allowMalformed: true); } catch (_) {}
-    try { return utf8.decode(gzip.decode(bytes), allowMalformed: true); } catch (_) {}
-    return utf8.decode(bytes, allowMalformed: true);
-  }
+  String _cleanLogContent(dynamic content) => MiuixLogUtils.cleanContent(content?.toString());
 
   @override
   Widget build(BuildContext context) {
@@ -1609,16 +1575,16 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
             ],
           ),
           const SizedBox(height: 24),
-          _buildDetailRow('任务类型', taskType == 'cron' ? '定时任务' : '手动任务'),
-          _buildDetailRow('分组', group.isEmpty ? '自动分组' : group),
-          _buildDetailRow('Cron 表达式', cronExpression.isEmpty ? '无' : cronExpression),
-          _buildDetailRow('执行命令', command),
-          _buildDetailRow('超时时间', '${timeout}秒'),
+          MiuixDetailRow(label: '任务类型', value: taskType == 'cron' ? '定时任务' : '手动任务'),
+          MiuixDetailRow(label: '分组', value: group.isEmpty ? '自动分组' : group),
+          MiuixDetailRow(label: 'Cron 表达式', value: cronExpression.isEmpty ? '无' : cronExpression),
+          MiuixDetailRow(label: '执行命令', value: command),
+          MiuixDetailRow(label: '超时时间', value: '${timeout}秒'),
           const Divider(height: 32),
-          _buildDetailRow('创建时间', createdAt),
-          _buildDetailRow('更新时间', updatedAt),
-          _buildDetailRow('上次运行', lastRunAt.isEmpty ? '未运行' : lastRunAt),
-          _buildDetailRow('下次运行', nextRunAt.isEmpty ? '无' : nextRunAt),
+          MiuixDetailRow(label: '创建时间', value: createdAt),
+          MiuixDetailRow(label: '更新时间', value: updatedAt),
+          MiuixDetailRow(label: '上次运行', value: lastRunAt.isEmpty ? '未运行' : lastRunAt),
+          MiuixDetailRow(label: '下次运行', value: nextRunAt.isEmpty ? '无' : nextRunAt),
           const Divider(height: 32),
           Row(
             children: [
@@ -1800,55 +1766,17 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
           if (endedAt.isNotEmpty)
             Text('结束: $endedAt', style: const TextStyle(fontSize: 11, color: Colors.grey)),
           const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: SelectableText(
-              _cleanLogContent(content).isEmpty ? '无日志内容' : _cleanLogContent(content),
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
-            ),
+          MiuixCodeBlock(
+            content: _cleanLogContent(content).isEmpty ? '无日志内容' : _cleanLogContent(content),
+            maxHeight: 300,
           ),
           if (error.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: SelectableText(
-                _cleanLogContent(error),
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.red),
-              ),
+            MiuixCodeBlock(
+              content: _cleanLogContent(error),
+              maxHeight: 150,
             ),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-              ),
-            ),
-          ),
-          Expanded(child: Text(value)),
         ],
       ),
     );

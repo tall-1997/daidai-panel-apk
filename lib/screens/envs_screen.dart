@@ -318,7 +318,7 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
                   ),
                   child: SelectableText(
                     jsonStr,
-                    style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                    style: MiuixTextStyles.monospace,
                   ),
                 ),
               ),
@@ -525,10 +525,6 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
               onPressed: _toggleSelectionMode,
               tooltip: '批量操作',
             ),
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _loadEnvs,
-            ),
           ],
         ],
       ),
@@ -544,50 +540,24 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const MiuixLoadingState();
     }
 
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 16),
-            Text(_error!),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _loadEnvs,
-              child: const Text('重试'),
-            ),
-          ],
-        ),
+      return MiuixErrorState(
+        message: _error!,
+        onRetry: _loadEnvs,
       );
     }
 
     if (_envs.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.settings_ethernet,
-              size: 64,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            const Text('暂无环境变量'),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () => _showCreateEnvDialog(),
-              icon: const Icon(Icons.add),
-              label: const Text('添加环境变量'),
-            ),
-          ],
+      return MiuixEmptyState(
+        icon: Icons.settings_ethernet,
+        title: '暂无环境变量',
+        action: ElevatedButton.icon(
+          onPressed: () => _showCreateEnvDialog(),
+          icon: const Icon(Icons.add),
+          label: const Text('添加环境变量'),
         ),
       );
     }
@@ -868,7 +838,7 @@ class _EnvCard extends StatelessWidget {
                 ),
                 child: Text(
                   value,
-                  style: const TextStyle(fontFamily: 'monospace'),
+                  style: MiuixTextStyles.monospace,
                 ),
               ),
               if (remarks.isNotEmpty) ...[

@@ -343,10 +343,6 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
               onPressed: _toggleSelectionMode,
               tooltip: '批量操作',
             ),
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _loadScripts,
-            ),
             PopupMenuButton(
               itemBuilder: (context) => [
                 const PopupMenuItem(
@@ -398,28 +394,13 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const MiuixLoadingState();
     }
 
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 16),
-            Text(_error!),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _loadScripts,
-              child: const Text('重试'),
-            ),
-          ],
-        ),
+      return MiuixErrorState(
+        message: _error!,
+        onRetry: _loadScripts,
       );
     }
 

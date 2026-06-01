@@ -1,7 +1,260 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/miuix_theme.dart';
 
-class MiuixCard extends StatelessWidget {
+// ==================== Miuix Dialog Components ====================
+
+Future<T?> showMiuixDialog<T>({
+  required BuildContext context,
+  required WidgetBuilder builder,
+  bool barrierDismissible = true,
+}) {
+  return showDialog<T>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    builder: builder,
+  );
+}
+
+Future<T?> showMiuixConfirmDialog<T>({
+  required BuildContext context,
+  required String title,
+  required String content,
+  String confirmText = '确认',
+  String cancelText = '取消',
+  Color? confirmColor,
+  bool isDestructive = false,
+}) {
+  return showDialog<T>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(title),
+      content: Text(content),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(cancelText),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: confirmColor != null
+              ? FilledButton.styleFrom(backgroundColor: confirmColor)
+              : isDestructive
+                  ? FilledButton.styleFrom(backgroundColor: MiuixColors.error)
+                  : null,
+          child: Text(confirmText),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<void> showMiuixExportDialog({
+  required BuildContext context,
+  required String title,
+  required String content,
+}) {
+  return showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(title),
+      content: SingleChildScrollView(
+        child: SelectableText(content, style: MiuixTextStyles.monospace),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('关闭'),
+        ),
+        FilledButton.icon(
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: content));
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('已复制到剪贴板'), backgroundColor: Colors.green),
+            );
+          },
+          icon: const Icon(Icons.copy, size: 18),
+          label: const Text('复制'),
+        ),
+      ],
+    ),
+  );
+}
+
+// ==================== Miuix Detail Row ====================
+
+class MiuixDetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final double labelWidth;
+
+  const MiuixDetailRow({
+    super.key,
+    required this.label,
+    required this.value,
+    this.labelWidth = 100,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: labelWidth,
+            child: Text(
+              label,
+              style: MiuixTextStyles.body2.copyWith(
+                fontWeight: FontWeight.bold,
+                color: isDark
+                    ? MiuixColors.darkOnSurfaceVariantSummary
+                    : MiuixColors.onSurfaceVariantSummary,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: MiuixTextStyles.body2.copyWith(
+                color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== Miuix Code Block ====================
+
+class MiuixCodeBlock extends StatelessWidget {
+  final String content;
+  final double? maxHeight;
+
+  const MiuixCodeBlock({super.key, required this.content, this.maxHeight});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      width: double.infinity,
+      constraints: maxHeight != null ? BoxConstraints(maxHeight: maxHeight!) : null,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? MiuixColors.darkSurfaceContainerHighest : MiuixColors.surface,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: SingleChildScrollView(
+        child: SelectableText(content, style: MiuixTextStyles.monospace),
+      ),
+    );
+  }
+}
+
+// ==================== Miuix Log Utils ====================
+
+class MiuixLogUtils {
+  static String cleanContent(String? content) {
+    if (content == null || content.isEmpty) return '';
+
+    // Try base64 decode
+    String decoded = content;
+    try {
+      final bytes = base64Decode(content);
+      decoded = decompressBytes(bytes);
+    } catch (_) {
+      // Not base64, use as-is
+    }
+
+    return stripAnsi(decoded);
+  }
+
+  static String decompressBytes(List<int> bytes) {
+    if (bytes.length > 2 && bytes[0] == 0x1f && bytes[1] == 0x8b) {
+      try {
+        return utf8.decode(GZipCodec().decode(bytes), allowMalformed: true);
+      } catch (_) {}
+    }
+    if (bytes.length > 2 && bytes[0] == 0x78) {
+      try {
+        return utf8.decode(ZLibCodec().decode(bytes), allowMalformed: true);
+      } catch (_) {}
+    }
+    try {
+      return utf8.decode(ZLibCodec().decode(bytes), allowMalformed: true);
+    } catch (_) {}
+    try {
+      return utf8.decode(GZipCodec().decode(bytes), allowMalformed: true);
+    } catch (_) {}
+    return utf8.decode(bytes, allowMalformed: true);
+  }
+
+  static String stripAnsi(String str) {
+    str = str.replaceAll(RegExp(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])'), '');
+    str = str.replaceAll(RegExp(r'\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)'), '');
+    str = str.replaceAll(RegExp(r'\[(?:\d+;)*\d+[A-Za-z]'), '');
+    str = str.replaceAll(RegExp(r'\[\d+m'), '');
+    str = str.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'), '');
+    return str.trim();
+  }
+}
+
+// ==================== Miuix Format Utils ====================
+
+class MiuixFormatUtils {
+  static String formatDuration(dynamic duration) {
+    if (duration == null || duration == 0) return '';
+    final ms = duration is int ? duration : (duration as num).toInt();
+    if (ms < 1000) return '${ms}ms';
+    if (ms < 60000) return '${(ms / 1000).toStringAsFixed(1)}s';
+    return '${(ms / 60000).toStringAsFixed(1)}min';
+  }
+
+  static String formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
+  static (Color, String) getStatusColorText(dynamic status, {String type = 'task'}) {
+    if (type == 'task') {
+      final statusNum = status is int ? status.toDouble() : (status ?? 0.0);
+      if (statusNum == 0) return (Colors.grey, '禁用');
+      if (statusNum == 1) return (Colors.green, '启用');
+      if (statusNum == 2) return (MiuixColors.primary, '运行中');
+      if (statusNum > 0 && statusNum < 1) return (Colors.orange, '排队中');
+      return (Colors.grey, '未知');
+    } else if (type == 'log') {
+      if (status == 0) return (Colors.green, '成功');
+      if (status == 1) return (MiuixColors.error, '失败');
+      if (status == 2) return (Colors.orange, '运行中');
+      return (Colors.grey, '未知');
+    } else if (type == 'dep') {
+      switch (status) {
+        case 'installed': return (Colors.green, '已安装');
+        case 'installing': return (Colors.orange, '安装中');
+        case 'queued': return (MiuixColors.primary, '排队中');
+        case 'failed': return (MiuixColors.error, '失败');
+        case 'removing': return (Colors.orange, '卸载中');
+        case 'cancelled': return (Colors.grey, '已取消');
+        default: return (Colors.grey, status?.toString() ?? '未知');
+      }
+    }
+    return (Colors.grey, '未知');
+  }
+}
+
+// ==================== Existing Widgets ====================
   final Widget child;
   final EdgeInsetsGeometry? padding;
   final VoidCallback? onTap;
