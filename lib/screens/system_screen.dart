@@ -128,7 +128,7 @@ class _SystemScreenState extends State<SystemScreen> with RefreshableScreen {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: (_isRooted ? Colors.green : Colors.orange).withValues(alpha: 0.15),
+              color: (_isRooted ? Colors.green : Colors.orange).withOpacity(0.15),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -177,7 +177,7 @@ class _SystemScreenState extends State<SystemScreen> with RefreshableScreen {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: MiuixColors.primary.withValues(alpha: 0.15),
+              color: MiuixColors.primary.withOpacity(0.15),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(

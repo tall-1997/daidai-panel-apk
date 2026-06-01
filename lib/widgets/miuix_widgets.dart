@@ -280,7 +280,7 @@ class MiuixCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(MiuixSpacing.cardCornerRadius),
-        border: Border.all(color: borderColor.withValues(alpha: 0.3), width: 0.5),
+        border: Border.all(color: borderColor.withOpacity(0.3), width: 0.5),
       ),
       child: Material(
         color: Colors.transparent,
@@ -350,7 +350,7 @@ class MiuixStatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+        color: color.withOpacity(0.15),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(

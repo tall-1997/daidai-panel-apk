@@ -214,7 +214,7 @@ ThemeData buildMiuixLightTheme() {
       floatingLabelStyle: const TextStyle(color: MiuixColors.primary, fontSize: 10),
       hintStyle: const TextStyle(color: MiuixColors.onSecondaryContainer, fontSize: 17),
     ),
-    dialogTheme: DialogThemeData(
+    dialogTheme: DialogTheme(
       backgroundColor: MiuixColors.surfaceContainer,
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -262,12 +262,12 @@ ThemeData buildMiuixLightTheme() {
       linearTrackColor: MiuixColors.secondaryContainer,
     ),
     switchTheme: SwitchThemeData(
-      thumbColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) return MiuixColors.onPrimary;
+      thumbColor: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.selected)) return MiuixColors.onPrimary;
         return MiuixColors.onSecondary;
       }),
-      trackColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) return MiuixColors.primary;
+      trackColor: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.selected)) return MiuixColors.primary;
         return MiuixColors.secondary;
       }),
     ),
@@ -357,7 +357,7 @@ ThemeData buildMiuixDarkTheme() {
       floatingLabelStyle: const TextStyle(color: MiuixColors.darkPrimary, fontSize: 10),
       hintStyle: const TextStyle(color: MiuixColors.darkOnSecondaryContainer, fontSize: 17),
     ),
-    dialogTheme: DialogThemeData(
+    dialogTheme: DialogTheme(
       backgroundColor: MiuixColors.darkSurfaceContainer,
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -405,12 +405,12 @@ ThemeData buildMiuixDarkTheme() {
       linearTrackColor: MiuixColors.darkSecondaryContainer,
     ),
     switchTheme: SwitchThemeData(
-      thumbColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) return MiuixColors.darkOnPrimary;
+      thumbColor: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.selected)) return MiuixColors.darkOnPrimary;
         return MiuixColors.darkOnSecondary;
       }),
-      trackColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) return MiuixColors.darkPrimary;
+      trackColor: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.selected)) return MiuixColors.darkPrimary;
         return MiuixColors.darkSecondary;
       }),
     ),
