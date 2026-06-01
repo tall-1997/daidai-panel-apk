@@ -245,8 +245,9 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
       ),
       body: _buildBody(),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showCreateScriptDialog(),
-        child: const Icon(Icons.add),
+        onPressed: () => _showUploadDialog(),
+        tooltip: '上传脚本',
+        child: const Icon(Icons.upload_file),
       ),
     );
   }
@@ -486,6 +487,16 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
                           nameController.text = fileName;
                           contentController.text = content;
                         });
+                      } else if (result != null && result.files.single.bytes != null) {
+                        // Web platform: use bytes instead of path
+                        final bytes = result.files.single.bytes!;
+                        final content = String.fromCharCodes(bytes);
+                        final fileName = result.files.single.name;
+                        
+                        setDialogState(() {
+                          nameController.text = fileName;
+                          contentController.text = content;
+                        });
                       }
                     } catch (e) {
                       if (mounted) {
@@ -526,9 +537,11 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
 
                 try {
                   final authService = context.read<AuthService>();
+                  final scriptName = _currentPath + nameController.text;
                   await authService.apiService.createScript({
-                    'name': _currentPath + nameController.text,
+                    'name': scriptName,
                     'content': contentController.text,
+                    'path': scriptName,
                   });
                   Navigator.pop(context);
                   _loadScripts();

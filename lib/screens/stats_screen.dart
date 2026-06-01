@@ -46,6 +46,11 @@ class _StatsScreenState extends State<StatsScreen> with RefreshableScreen {
         setState(() {
           _dashboard = dashboard['data'] ?? dashboard;
           _systemStats = systemInfo['data'] ?? systemInfo;
+          // 合并系统信息到 dashboard，确保版本信息可用
+          if (_systemStats != null && _systemStats!.containsKey('version')) {
+            _dashboard = _dashboard ?? {};
+            _dashboard!['panel_version'] = _systemStats!['version'];
+          }
           _isLoading = false;
         });
       }
@@ -125,17 +130,19 @@ class _StatsScreenState extends State<StatsScreen> with RefreshableScreen {
             const Text('面板概览', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const Divider(),
             _buildStatRow('总任务数', data['task_count']?.toString() ?? 
-              data['total_tasks']?.toString() ?? '0'),
+              data['total_tasks']?.toString() ?? data['tasks']?.toString() ?? '0'),
             _buildStatRow('启用任务', data['enabled_task_count']?.toString() ?? 
               data['enabled_tasks']?.toString() ?? '0'),
             _buildStatRow('运行中任务', data['running_task_count']?.toString() ?? 
               data['running_tasks']?.toString() ?? '0'),
             _buildStatRow('总日志数', data['log_count']?.toString() ?? 
-              data['total_logs']?.toString() ?? '0'),
+              data['total_logs']?.toString() ?? data['logs']?.toString() ?? '0'),
             _buildStatRow('环境变量数', data['env_count']?.toString() ?? 
-              data['total_envs']?.toString() ?? '0'),
+              data['total_envs']?.toString() ?? data['envs']?.toString() ?? '0'),
             _buildStatRow('脚本数', data['script_count']?.toString() ?? 
-              data['total_scripts']?.toString() ?? '0'),
+              data['total_scripts']?.toString() ?? data['scripts']?.toString() ?? '0'),
+            if (data['panel_version'] != null)
+              _buildStatRow('面板版本', data['panel_version'].toString()),
           ],
         ),
       ),
@@ -170,13 +177,15 @@ class _StatsScreenState extends State<StatsScreen> with RefreshableScreen {
             const Text('系统信息', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const Divider(),
             _buildStatRow('操作系统', data['os']?.toString() ?? 
-              data['platform']?.toString() ?? '-'),
+              data['platform']?.toString() ?? data['os_name']?.toString() ?? '-'),
             _buildStatRow('架构', data['arch']?.toString() ?? 
-              data['architecture']?.toString() ?? '-'),
-            _buildStatRow('Go版本', data['go_version']?.toString() ?? '-'),
+              data['architecture']?.toString() ?? data['goarch']?.toString() ?? '-'),
+            _buildStatRow('Go版本', data['go_version']?.toString() ?? 
+              data['goversion']?.toString() ?? '-'),
             _buildStatRow('CPU核心数', data['num_cpu']?.toString() ?? 
-              data['cpu_count']?.toString() ?? '-'),
-            _buildStatRow('面板版本', data['version']?.toString() ?? '-'),
+              data['cpu_count']?.toString() ?? data['cpus']?.toString() ?? '-'),
+            _buildStatRow('面板版本', data['version']?.toString() ?? 
+              data['panel_version']?.toString() ?? data['app_version']?.toString() ?? '-'),
             if (data['ip'] != null)
               _buildStatRow('IP地址', data['ip'].toString()),
             if (data['hostname'] != null)
@@ -211,11 +220,14 @@ class _StatsScreenState extends State<StatsScreen> with RefreshableScreen {
             const Text('任务统计', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const Divider(),
             _buildStatRow('成功次数', _dashboard?['success_count']?.toString() ?? 
-              _dashboard?['success_runs']?.toString() ?? '0'),
+              _dashboard?['success_runs']?.toString() ?? 
+              _dashboard?['total_success']?.toString() ?? '0'),
             _buildStatRow('失败次数', _dashboard?['fail_count']?.toString() ?? 
-              _dashboard?['failed_runs']?.toString() ?? '0'),
+              _dashboard?['failed_runs']?.toString() ?? 
+              _dashboard?['total_failed']?.toString() ?? '0'),
             _buildStatRow('最后执行时间', _dashboard?['last_run_time']?.toString() ?? 
-              _dashboard?['last_execution']?.toString() ?? '-'),
+              _dashboard?['last_execution']?.toString() ?? 
+              _dashboard?['last_run']?.toString() ?? '-'),
           ],
         ),
       ),

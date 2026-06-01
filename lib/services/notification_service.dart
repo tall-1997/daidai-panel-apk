@@ -1,4 +1,5 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -33,12 +34,19 @@ class NotificationService {
     );
   }
 
+  Future<bool> isNotificationEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('notification_enabled') ?? false;
+  }
+
   Future<void> showTaskNotification({
     required int taskId,
     required String taskName,
     required String message,
     bool isSuccess = true,
   }) async {
+    if (!await isNotificationEnabled()) return;
+    
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
       'daidai_tasks',

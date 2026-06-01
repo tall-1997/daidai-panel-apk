@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart';
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';
 import '../services/root/magisk_helper.dart';
 import 'home_screen.dart';
 
@@ -17,17 +19,41 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
   bool _isRooted = false;
   MagiskModuleInfo? _moduleInfo;
   String _appVersion = '';
+  bool _notificationEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _checkRootStatus();
     _loadAppVersion();
+    _loadNotificationSetting();
   }
 
   @override
   void refresh() {
     _checkRootStatus();
+  }
+
+  Future<void> _loadNotificationSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _notificationEnabled = prefs.getBool('notification_enabled') ?? false;
+    });
+  }
+
+  Future<void> _toggleNotification(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('notification_enabled', value);
+    setState(() {
+      _notificationEnabled = value;
+    });
+    if (value) {
+      await NotificationService().showSimpleNotification(
+        id: 0,
+        title: '通知已开启',
+        body: '您将收到任务执行状态的通知',
+      );
+    }
   }
 
   Future<void> _loadAppVersion() async {
@@ -201,10 +227,8 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
                   secondary: const Icon(Icons.notifications_active),
                   title: const Text('App 通知推送'),
                   subtitle: const Text('通过 App 通道接收任务通知'),
-                  value: false,
-                  onChanged: (value) {
-                    // TODO: Implement notification push
-                  },
+                  value: _notificationEnabled,
+                  onChanged: _toggleNotification,
                 ),
               ],
             ),

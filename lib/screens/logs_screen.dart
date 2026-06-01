@@ -50,13 +50,14 @@ class _LogsScreenState extends State<LogsScreen> with RefreshableScreen {
 
       if (result['data'] != null) {
         final newLogs = List<Map<String, dynamic>>.from(result['data'] ?? []);
+        // 确保日志包含所有状态（成功、失败、运行中）
         setState(() {
           if (loadMore) {
             _logs.addAll(newLogs);
           } else {
             _logs = newLogs;
           }
-          _totalLogs = result['total'] ?? 0;
+          _totalLogs = result['total'] ?? result['count'] ?? newLogs.length;
           _isLoading = false;
         });
       } else {
@@ -456,19 +457,22 @@ class _LogCard extends StatelessWidget {
                       fontSize: 11,
                     ),
                   ),
-                  const Spacer(),
                   if (durationText.isNotEmpty) ...[
+                    const SizedBox(width: 8),
                     Icon(
                       Icons.timer,
                       size: 12,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(width: 4),
-                    Text(
-                      durationText,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey,
-                        fontSize: 11,
+                    Flexible(
+                      child: Text(
+                        durationText,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey,
+                          fontSize: 11,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],

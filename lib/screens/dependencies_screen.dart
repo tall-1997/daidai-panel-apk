@@ -41,6 +41,12 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
           _dependencies = List<Map<String, dynamic>>.from(result['data'] ?? []);
           _isLoading = false;
         });
+      } else if (result['deps'] != null) {
+        // 兼容不同的 API 返回格式
+        setState(() {
+          _dependencies = List<Map<String, dynamic>>.from(result['deps'] ?? []);
+          _isLoading = false;
+        });
       } else {
         setState(() {
           _error = result['message'] ?? '获取依赖失败';
@@ -264,13 +270,13 @@ class _DependencyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = dep['name'] ?? '';
-    final type = dep['type'] ?? '';
-    final status = dep['status'] ?? '';
-    final version = dep['version'] ?? '';
-    final installedAt = dep['installed_at'] ?? dep['installedAt'] ?? '';
-    final description = dep['description'] ?? '';
-    final filePath = dep['file_path'] ?? dep['filePath'] ?? dep['path'] ?? '';
+    final name = dep['name'] ?? dep['package_name'] ?? '';
+    final type = dep['type'] ?? dep['dep_type'] ?? '';
+    final status = dep['status'] ?? dep['install_status'] ?? '';
+    final version = dep['version'] ?? dep['installed_version'] ?? '';
+    final installedAt = dep['installed_at'] ?? dep['installedAt'] ?? dep['created_at'] ?? '';
+    final description = dep['description'] ?? dep['desc'] ?? '';
+    final filePath = dep['file_path'] ?? dep['filePath'] ?? dep['path'] ?? dep['location'] ?? dep['install_path'] ?? '';
 
     IconData typeIcon;
     switch (type) {

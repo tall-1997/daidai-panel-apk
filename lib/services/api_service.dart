@@ -263,10 +263,13 @@ class ApiService {
   }
 
   // Log APIs
-  Future<Map<String, dynamic>> getLogs({int page = 1, int pageSize = 50, int? taskId}) async {
+  Future<Map<String, dynamic>> getLogs({int page = 1, int pageSize = 50, int? taskId, String? status}) async {
     String path = '/logs?page=$page&page_size=$pageSize';
     if (taskId != null) {
       path += '&task_id=$taskId';
+    }
+    if (status != null && status.isNotEmpty) {
+      path += '&status=$status';
     }
     final response = await get(path);
     return jsonDecode(response.body);
