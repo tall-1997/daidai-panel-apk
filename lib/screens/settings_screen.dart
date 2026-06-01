@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../main.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
@@ -305,6 +306,200 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
     }
   }
 
+  Future<void> _exportBackupData() async {
+    try {
+      final authService = context.read<AuthService>();
+      final api = authService.apiService;
+
+      final results = await Future.wait([
+        api.get('/tasks?page=1&page_size=1000'),
+        api.get('/envs?page=1&page_size=1000'),
+        api.get('/notifications'),
+      ]);
+
+      final tasksData = jsonDecode(results[0].body);
+      final envsData = jsonDecode(results[1].body);
+      final notifsData = jsonDecode(results[2].body);
+
+      if (mounted) {
+        final backup = {
+          'version': '1.0',
+          'timestamp': DateTime.now().toIso8601String(),
+          'tasks': tasksData['data'] ?? [],
+          'envs': envsData['data'] ?? [],
+          'notifications': notifsData['data'] ?? [],
+        };
+
+        final backupJson = const JsonEncoder.withIndent('  ').convert(backup);
+
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('导出备份数据'),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('任务: ${(backup['tasks'] as List).length} 个'),
+                  Text('环境变量: ${(backup['envs'] as List).length} 个'),
+                  Text('通知: ${(backup['notifications'] as List).length} 个'),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      backupJson,
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 10),
+                      maxLines: 10,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('关闭'),
+              ),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Clipboard.setData(ClipboardData(text: backupJson));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('备份数据已复制到剪贴板'), backgroundColor: Colors.green),
+                  );
+                },
+                icon: const Icon(Icons.copy),
+                label: const Text('复制'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('导出备份失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _importBackupData() async {
+    final controller = TextEditingController();
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('导入备份数据'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('请粘贴备份数据（JSON格式）'),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  maxLines: 10,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    hintText: '粘贴备份数据...',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _processImport(controller.text);
+              },
+              child: const Text('导入'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Future<void> _processImport(String data) async {
+    if (data.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('请输入备份数据'), backgroundColor: Colors.red),
+        );
+      }
+      return;
+    }
+
+    try {
+      final backup = jsonDecode(data);
+      final authService = context.read<AuthService>();
+      final api = authService.apiService;
+
+      int importedTasks = 0;
+      int importedEnvs = 0;
+
+      if (backup['tasks'] != null) {
+        for (final task in backup['tasks']) {
+          try {
+            await api.post('/tasks', body: {
+              'name': task['name'],
+              'task_type': task['task_type'],
+              'command': task['command'],
+              'cron_expression': task['cron_expression'],
+              'timeout': task['timeout'] ?? 0,
+            });
+            importedTasks++;
+          } catch (e) {
+            // Skip failed imports
+          }
+        }
+      }
+
+      if (backup['envs'] != null) {
+        for (final env in backup['envs']) {
+          try {
+            await api.post('/envs', body: {
+              'name': env['name'],
+              'value': env['value'],
+              'remarks': env['remarks'],
+            });
+            importedEnvs++;
+          } catch (e) {
+            // Skip failed imports
+          }
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('导入完成: $importedTasks 个任务, $importedEnvs 个环境变量'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('导入失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authService = context.watch<AuthService>();
@@ -466,6 +661,35 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
                   subtitle: const Text('通过 App 通道接收任务通知'),
                   value: _notificationEnabled,
                   onChanged: _toggleNotification,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Backup and restore
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('备份与恢复', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: const Icon(Icons.upload),
+                  title: const Text('导出备份'),
+                  subtitle: const Text('导出任务、环境变量和通知配置'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _exportBackupData(),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.download),
+                  title: const Text('导入备份'),
+                  subtitle: const Text('从 JSON 数据导入配置'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _importBackupData(),
                 ),
               ],
             ),

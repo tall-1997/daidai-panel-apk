@@ -6,14 +6,10 @@ import 'envs_screen.dart';
 import 'dependencies_screen.dart';
 import 'scripts_screen.dart';
 import 'logs_screen.dart';
-import 'notifications_screen.dart';
 import 'system_screen.dart';
 import 'settings_screen.dart';
-import 'quick_actions_screen.dart';
-import 'stats_screen.dart';
 import 'config_screen.dart';
 import 'terminal_screen.dart';
-import 'backup_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -33,12 +29,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _NavigationItem(Icons.extension, '依赖管理'),
     _NavigationItem(Icons.code, '脚本'),
     _NavigationItem(Icons.article, '日志'),
-    _NavigationItem(Icons.notifications, '通知'),
     _NavigationItem(Icons.computer, '系统'),
-    _NavigationItem(Icons.flash_on, '快捷操作'),
-    _NavigationItem(Icons.bar_chart, '统计'),
     _NavigationItem(Icons.terminal, '终端'),
-    _NavigationItem(Icons.backup, '备份'),
     _NavigationItem(Icons.settings, '配置'),
     _NavigationItem(Icons.tune, '设置'),
   ];
@@ -227,20 +219,12 @@ class _HomeScreenState extends State<HomeScreen> {
       case 4:
         return LogsScreen(key: _refreshableScreenKey);
       case 5:
-        return NotificationsScreen(key: _refreshableScreenKey);
-      case 6:
         return SystemScreen(key: _refreshableScreenKey);
-      case 7:
-        return QuickActionsScreen(key: _refreshableScreenKey);
-      case 8:
-        return StatsScreen(key: _refreshableScreenKey);
-      case 9:
+      case 6:
         return TerminalScreen(key: _refreshableScreenKey);
-      case 10:
-        return BackupScreen(key: _refreshableScreenKey);
-      case 11:
+      case 7:
         return ConfigScreen(key: _refreshableScreenKey);
-      case 12:
+      case 8:
         return SettingsScreen(key: _refreshableScreenKey);
       default:
         return TasksScreen(key: _refreshableScreenKey);

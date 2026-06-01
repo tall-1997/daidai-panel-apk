@@ -833,7 +833,7 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
   }
 }
 
-class _TaskCard extends StatelessWidget {
+class _TaskCard extends StatefulWidget {
   final Map<String, dynamic> task;
   final bool isSelectionMode;
   final bool isSelected;
@@ -859,15 +859,55 @@ class _TaskCard extends StatelessWidget {
   });
 
   @override
+  State<_TaskCard> createState() => _TaskCardState();
+}
+
+class _TaskCardState extends State<_TaskCard> {
+  bool _isExpanded = false;
+  Map<String, dynamic>? _latestLog;
+  bool _isLoadingLog = false;
+
+  Future<void> _loadLatestLog() async {
+    if (_latestLog != null) return;
+    
+    setState(() => _isLoadingLog = true);
+    try {
+      final authService = context.read<AuthService>();
+      final result = await authService.apiService.getTaskLatestLog(widget.task['id']);
+      if (mounted) {
+        setState(() {
+          _latestLog = result['data'] ?? result;
+          _isLoadingLog = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingLog = false);
+      }
+    }
+  }
+
+  String _cleanLogContent(dynamic content) {
+    if (content == null) return '';
+    String str = content.toString();
+    
+    // Remove ANSI escape sequences
+    str = str.replaceAll(RegExp(r'\x1B\[[0-9;]*[a-zA-Z]'), '');
+    str = str.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'), '');
+    
+    return str.trim();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final name = task['name'] ?? '未命名任务';
-    final taskType = task['task_type'] ?? 'cron';
-    final status = task['status'] ?? 0;
-    final cronExpression = task['cron_expression'] ?? '';
-    final command = task['command'] ?? '';
-    final lastRunAt = task['last_run_at'] ?? '';
-    final nextRunAt = task['next_run_at'] ?? '';
-    final isPinned = task['is_pinned'] ?? false;
+    final name = widget.task['name'] ?? '未命名任务';
+    final taskType = widget.task['task_type'] ?? 'cron';
+    final status = widget.task['status'] ?? 0;
+    final cronExpression = widget.task['cron_expression'] ?? '';
+    final command = widget.task['command'] ?? '';
+    final lastRunAt = widget.task['last_run_at'] ?? '';
+    final nextRunAt = widget.task['next_run_at'] ?? '';
+    final isPinned = widget.task['is_pinned'] ?? false;
     
     Color statusColor;
     String statusText;
@@ -892,7 +932,7 @@ class _TaskCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
-        onTap: isSelectionMode ? onSelectionChanged : onTap,
+        onTap: widget.isSelectionMode ? widget.onSelectionChanged : widget.onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -901,12 +941,12 @@ class _TaskCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  if (isSelectionMode)
+                  if (widget.isSelectionMode)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: Icon(
-                        isSelected ? Icons.check_circle : Icons.circle_outlined,
-                        color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey,
+                        widget.isSelected ? Icons.check_circle : Icons.circle_outlined,
+                        color: widget.isSelected ? Theme.of(context).colorScheme.primary : Colors.grey,
                       ),
                     ),
                   if (isPinned)
@@ -972,6 +1012,119 @@ class _TaskCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Colors.grey,
                   ),
+                ),
+              ],
+              // Expand/collapse log button
+              if (lastRunAt.isNotEmpty)
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _isExpanded = !_isExpanded;
+                      if (_isExpanded) {
+                        _loadLatestLog();
+                      }
+                    });
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _isExpanded ? Icons.expand_less : Icons.expand_more,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _isExpanded ? '收起日志' : '展开上次运行日志',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              // Expanded log content
+              if (_isExpanded) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: _isLoadingLog
+                      ? const Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : _latestLog != null
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      _latestLog!['status'] == 0
+                                          ? Icons.check_circle
+                                          : _latestLog!['status'] == 1
+                                              ? Icons.error
+                                              : Icons.hourglass_empty,
+                                      size: 14,
+                                      color: _latestLog!['status'] == 0
+                                          ? Colors.green
+                                          : _latestLog!['status'] == 1
+                                              ? Colors.red
+                                              : Colors.orange,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      _latestLog!['status'] == 0
+                                          ? '成功'
+                                          : _latestLog!['status'] == 1
+                                              ? '失败'
+                                              : '运行中',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: _latestLog!['status'] == 0
+                                            ? Colors.green
+                                            : _latestLog!['status'] == 1
+                                                ? Colors.red
+                                                : Colors.orange,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    if (_latestLog!['duration'] != null && _latestLog!['duration'] > 0)
+                                      Text(
+                                        '${_latestLog!['duration']}ms',
+                                        style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _cleanLogContent(_latestLog!['content'] ?? _latestLog!['output'] ?? '').isEmpty
+                                      ? '无日志内容'
+                                      : _cleanLogContent(_latestLog!['content'] ?? _latestLog!['output'] ?? ''),
+                                  style: const TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 11,
+                                  ),
+                                  maxLines: 10,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            )
+                          : const Text(
+                              '暂无运行日志',
+                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
                 ),
               ],
               const SizedBox(height: 12),

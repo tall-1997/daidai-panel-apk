@@ -33,9 +33,31 @@ class _ConfigScreenState extends State<ConfigScreen> with RefreshableScreen {
     try {
       final authService = context.read<AuthService>();
       final api = authService.apiService;
-      final config = await api.getConfig();
+      
+      // Load config and system info in parallel
+      final results = await Future.wait([
+        api.getConfig().catchError((e) => {'error': e.toString()}),
+        api.getSystemInfo().catchError((e) => {'error': e.toString()}),
+      ]);
+      
+      final config = results[0];
+      final systemInfo = results[1];
+      
       setState(() {
         _configs = config['data'] ?? [];
+        
+        // If config is empty, try to create default config from system info
+        if (_configs.isEmpty && systemInfo['data'] != null) {
+          final sysData = systemInfo['data'];
+          _configs = [
+            {'key': 'panel_version', 'value': sysData['version'] ?? ''},
+            {'key': 'go_version', 'value': sysData['go_version'] ?? ''},
+            {'key': 'os', 'value': '${sysData['os'] ?? ''} ${sysData['arch'] ?? ''}'},
+            {'key': 'hostname', 'value': sysData['hostname'] ?? ''},
+            {'key': 'num_cpu', 'value': sysData['num_cpu']?.toString() ?? ''},
+          ];
+        }
+        
         _isLoading = false;
       });
     } catch (e) {

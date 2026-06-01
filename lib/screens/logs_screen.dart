@@ -515,39 +515,91 @@ class _LogDetailSheet extends StatelessWidget {
     // Try to decode base64 if it looks like base64
     if (_isBase64(content)) {
       try {
-        final decoded = String.fromCharCodes(base64Decode(content));
+        final decoded = utf8.decode(base64Decode(content), allowMalformed: true);
         content = decoded;
       } catch (e) {
-        // If decoding fails, use original content
+        // If decoding fails, try latin1 decode
+        try {
+          final decoded = String.fromCharCodes(base64Decode(content));
+          content = decoded;
+        } catch (e2) {
+          // Use original content
+        }
+      }
+    }
+    
+    // Try to fix garbled text by detecting and re-encoding
+    if (_isGarbled(content)) {
+      try {
+        // Try to interpret as latin1 and convert to utf8
+        final bytes = content.codeUnits;
+        content = utf8.decode(bytes, allowMalformed: true);
+      } catch (e) {
+        // If conversion fails, keep original
       }
     }
     
     // Remove ANSI escape sequences (terminal color codes)
     content = content.replaceAll(RegExp(r'\x1B\[[0-9;]*[a-zA-Z]'), '');
+    content = content.replaceAll(RegExp(r'\x1B\][^\x07]*\x07'), '');
+    content = content.replaceAll(RegExp(r'\x1B\[[\d;]*[HfABCDEFGJKSTsu]'), '');
     
     // Remove other common control characters but keep newlines and tabs
     content = content.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'), '');
     
-    // Fix common encoding issues
-    content = content
-        .replaceAll('â€™', "'")
-        .replaceAll('â€œ', '"')
-        .replaceAll('â€', '"')
-        .replaceAll('Ã©', 'e')
-        .replaceAll('Ã¨', 'e')
-        .replaceAll('Ã ', 'a')
-        .replaceAll('Ã¡', 'a')
-        .replaceAll('Ã³', 'o')
-        .replaceAll('Ã±', 'n');
+    // Fix common UTF-8 encoding issues (double encoding)
+    content = _fixDoubleEncoding(content);
     
     return content.trim();
   }
 
   bool _isBase64(String str) {
-    // Check if string looks like base64
     if (str.length < 4) return false;
     final base64Regex = RegExp(r'^[A-Za-z0-9+/]*={0,2}$');
     return base64Regex.hasMatch(str) && str.length % 4 == 0;
+  }
+
+  bool _isGarbled(String str) {
+    // Check for common garbled patterns
+    final garbledPatterns = [
+      'â€™', 'â€œ', 'â€', 'Ã©', 'Ã¨', 'Ã ', 'Ã¡', 'Ã³', 'Ã±',
+      'æ', 'è', 'ä', 'å', 'ç', 'ð', 'ñ', 'ò', 'ó',
+    ];
+    for (final pattern in garbledPatterns) {
+      if (str.contains(pattern)) return true;
+    }
+    return false;
+  }
+
+  String _fixDoubleEncoding(String str) {
+    // Fix common double-encoded UTF-8 sequences
+    final replacements = {
+      'â€™': "'",
+      'â€œ': '"',
+      'â€': '"',
+      'Ã©': 'é',
+      'Ã¨': 'è',
+      'Ã ': 'à',
+      'Ã¡': 'á',
+      'Ã³': 'ó',
+      'Ã±': 'ñ',
+      'Ã¼': 'ü',
+      'Ã¶': 'ö',
+      'Ã¤': 'ä',
+      'Ã¢': 'â',
+      'Ã®': 'î',
+      'Ã´': 'ô',
+      'Ã»': 'û',
+      'Ãù': 'ù',
+      'Ã€': 'À',
+      'Ã‰': 'É',
+    };
+    
+    for (final entry in replacements.entries) {
+      str = str.replaceAll(entry.key, entry.value);
+    }
+    
+    return str;
   }
 
   @override
