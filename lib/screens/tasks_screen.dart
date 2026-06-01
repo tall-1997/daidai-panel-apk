@@ -1071,22 +1071,13 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
     if (content == null) return '';
     String str = content.toString();
     
-    // Try to decode base64 + gzip (eJ prefix = gzip compressed base64)
-    if (str.length > 8 && RegExp(r'^[A-Za-z0-9+/]*={0,2}$').hasMatch(str.trim())) {
+    // Try to decode compressed/encoded content
+    if (str.length > 8 && RegExp(r'^[A-Za-z0-9+/=\s]+$').hasMatch(str.trim())) {
       try {
         final bytes = base64Decode(str.trim());
-        if (bytes.length > 2 && bytes[0] == 0x1f && bytes[1] == 0x8b) {
-          str = utf8.decode(gzip.decode(bytes), allowMalformed: true);
-        } else {
-          str = utf8.decode(bytes, allowMalformed: true);
-        }
+        str = _decompressBytes(bytes);
       } catch (e) {
-        try {
-          final bytes = base64Decode(str.trim());
-          str = utf8.decode(bytes, allowMalformed: true);
-        } catch (e2) {
-          // Use original
-        }
+        // Not valid base64, use as-is
       }
     }
     
@@ -1097,6 +1088,18 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
     str = str.replaceAll(RegExp(r'\[\d+m'), '');
     str = str.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'), '');
     return str.trim();
+  }
+
+  String _decompressBytes(List<int> bytes) {
+    if (bytes.length > 2 && bytes[0] == 0x1f && bytes[1] == 0x8b) {
+      try { return utf8.decode(gzip.decode(bytes), allowMalformed: true); } catch (_) {}
+    }
+    if (bytes.length > 2 && bytes[0] == 0x78) {
+      try { return utf8.decode(zlib.decode(bytes), allowMalformed: true); } catch (_) {}
+    }
+    try { return utf8.decode(zlib.decode(bytes), allowMalformed: true); } catch (_) {}
+    try { return utf8.decode(gzip.decode(bytes), allowMalformed: true); } catch (_) {}
+    return utf8.decode(bytes, allowMalformed: true);
   }
 
   @override

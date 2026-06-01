@@ -513,16 +513,47 @@ class _LogDetailSheet extends StatelessWidget {
     
     String content = rawContent.toString();
     
-    // Try to decode base64 + gzip (eJ prefix = gzip compressed base64)
-    if (content.length > 8 && RegExp(r'^[A-Za-z0-9+/]*={0,2}$').hasMatch(content.trim())) {
+    // Try to decode compressed/encoded content
+    if (content.length > 8 && RegExp(r'^[A-Za-z0-9+/=\s]+$').hasMatch(content.trim())) {
       try {
         final bytes = base64Decode(content.trim());
-        // Check gzip magic number (1f 8b)
-        if (bytes.length > 2 && bytes[0] == 0x1f && bytes[1] == 0x8b) {
-          content = utf8.decode(gzip.decode(bytes), allowMalformed: true);
-        } else {
-          content = utf8.decode(bytes, allowMalformed: true);
-        }
+        content = _decompressBytes(bytes);
+      } catch (e) {
+        // Not valid base64, use as-is
+      }
+    }
+    
+    // Remove ANSI escape sequences
+    content = _stripAnsi(content);
+    
+    return content.trim();
+  }
+
+  // Try multiple decompression methods on raw bytes
+  String _decompressBytes(List<int> bytes) {
+    // Check gzip magic (1f 8b)
+    if (bytes.length > 2 && bytes[0] == 0x1f && bytes[1] == 0x8b) {
+      try {
+        return utf8.decode(gzip.decode(bytes), allowMalformed: true);
+      } catch (_) {}
+    }
+    // Check zlib magic (78 01/5e/9c/da)
+    if (bytes.length > 2 && bytes[0] == 0x78) {
+      try {
+        return utf8.decode(zlib.decode(bytes), allowMalformed: true);
+      } catch (_) {}
+    }
+    // Try zlib anyway (some data has no magic)
+    try {
+      return utf8.decode(zlib.decode(bytes), allowMalformed: true);
+    } catch (_) {}
+    // Try gzip anyway
+    try {
+      return utf8.decode(gzip.decode(bytes), allowMalformed: true);
+    } catch (_) {}
+    // Fallback: raw UTF-8
+    return utf8.decode(bytes, allowMalformed: true);
+  }
       } catch (e) {
         // Try without gzip
         try {
