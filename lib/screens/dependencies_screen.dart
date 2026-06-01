@@ -18,6 +18,7 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
   bool _isLoading = true;
   String? _error;
   String _filterType = 'all'; // all, nodejs, python, linux
+  String _filterStatus = 'all'; // all, installed, installing, queued, failed
   Timer? _pollTimer;
 
   @override
@@ -108,8 +109,14 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
   }
 
   List<Map<String, dynamic>> _getFilteredDeps() {
-    if (_filterType == 'all') return _dependencies;
-    return _dependencies.where((dep) => dep['type'] == _filterType).toList();
+    var filtered = _dependencies;
+    if (_filterType != 'all') {
+      filtered = filtered.where((dep) => dep['type'] == _filterType).toList();
+    }
+    if (_filterStatus != 'all') {
+      filtered = filtered.where((dep) => dep['status'] == _filterStatus).toList();
+    }
+    return filtered;
   }
 
   // POST /deps {type, names}
@@ -445,6 +452,26 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
               ),
             ),
           ),
+          // Status filter chips
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildStatusFilterChip('全部', 'all'),
+                  const SizedBox(width: 8),
+                  _buildStatusFilterChip('已安装', 'installed'),
+                  const SizedBox(width: 8),
+                  _buildStatusFilterChip('安装中', 'installing'),
+                  const SizedBox(width: 8),
+                  _buildStatusFilterChip('安装失败', 'failed'),
+                  const SizedBox(width: 8),
+                  _buildStatusFilterChip('排队中', 'queued'),
+                ],
+              ),
+            ),
+          ),
           // Stats
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -478,6 +505,29 @@ class _DependenciesScreenState extends State<DependenciesScreen> with Refreshabl
       onSelected: (selected) {
         setState(() => _filterType = value);
         _loadDependencies();
+      },
+    );
+  }
+
+  Widget _buildStatusFilterChip(String label, String value) {
+    final isSelected = _filterStatus == value;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      selectedColor: MiuixColors.primary.withOpacity(0.2),
+      checkmarkColor: MiuixColors.primary,
+      labelStyle: TextStyle(
+        color: isSelected
+            ? MiuixColors.primary
+            : (isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface),
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+      ),
+      side: isSelected
+          ? BorderSide(color: MiuixColors.primary)
+          : BorderSide(color: isDark ? MiuixColors.darkDividerLine : MiuixColors.dividerLine),
+      onSelected: (selected) {
+        setState(() => _filterStatus = value);
       },
     );
   }

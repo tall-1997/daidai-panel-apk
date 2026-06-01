@@ -109,6 +109,8 @@ class _SystemScreenState extends State<SystemScreen> with RefreshableScreen {
                     children: [
                       _buildRootStatusCard(),
                       const SizedBox(height: 16),
+                      _buildPanelVersionCard(),
+                      const SizedBox(height: 16),
                       _buildDashboardCard(),
                       const SizedBox(height: 16),
                       _buildSystemInfoCard(),
@@ -158,6 +160,55 @@ class _SystemScreenState extends State<SystemScreen> with RefreshableScreen {
                   _isRooted ? '已获取 Root 权限' : '未获取 Root 权限',
                   style: MiuixTextStyles.footnote1.copyWith(
                     color: _isRooted ? Colors.green : Colors.orange,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPanelVersionCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final version = _systemInfo['version'] ?? _systemInfo['panel_version'] ?? '';
+
+    if (version.isEmpty) return const SizedBox.shrink();
+
+    return MiuixCard(
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: MiuixColors.primary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.info_outline,
+              color: MiuixColors.primary,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '面板版本',
+                  style: MiuixTextStyles.headline2.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  version,
+                  style: MiuixTextStyles.footnote1.copyWith(
+                    color: MiuixColors.primary,
                   ),
                 ),
               ],

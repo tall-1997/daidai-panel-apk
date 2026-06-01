@@ -22,6 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   bool _isSidebarExpanded = false;
   final GlobalKey<State<StatefulWidget>> _refreshableScreenKey = GlobalKey();
+  String _panelVersion = '';
 
   final List<_NavigationItem> _navigationItems = [
     _NavigationItem(Icons.list_alt, '任务'),
@@ -33,6 +34,28 @@ class _HomeScreenState extends State<HomeScreen> {
     _NavigationItem(Icons.settings, '配置'),
     _NavigationItem(Icons.tune, '设置'),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPanelVersion();
+  }
+
+  Future<void> _fetchPanelVersion() async {
+    try {
+      final authService = context.read<AuthService>();
+      final result = await authService.apiService.getSystemInfo();
+      if (mounted && result['data'] != null) {
+        final data = result['data'] as Map<String, dynamic>;
+        final version = data['version'] ?? data['panel_version'] ?? '';
+        if (version.isNotEmpty) {
+          setState(() => _panelVersion = version);
+        }
+      }
+    } catch (_) {
+      // Fallback to default version
+    }
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -267,7 +290,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Padding(
                       padding: const EdgeInsets.all(16),
                       child: Text(
-                        'v0.0.34',
+                        _panelVersion.isNotEmpty ? _panelVersion :                         'v0.0.35',
                         style: MiuixTextStyles.footnote2.copyWith(
                           color: isDark
                               ? MiuixColors.darkOnSurfaceContainerVariant

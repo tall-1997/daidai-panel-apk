@@ -385,6 +385,16 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
+  Future<Map<String, dynamic>> sortEnvs(List<int> ids) async {
+    final response = await put('/envs/sort', body: {'ids': ids});
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> clearLogsByDays(int days) async {
+    final response = await post('/logs/clear', body: {'days': days});
+    return jsonDecode(response.body);
+  }
+
   // Script APIs
   Future<Map<String, dynamic>> getScripts() async {
     final response = await get('/scripts');
@@ -572,6 +582,20 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> addScriptSubscription(Map<String, dynamic> subscription) async {
+    // Apply GitHub mirror acceleration for raw URLs
+    if (subscription.containsKey('url')) {
+      final url = subscription['url'] as String;
+      if (url.contains('github.com') || url.contains('raw.githubusercontent.com')) {
+        String mirrorUrl = url;
+        if (url.contains('github.com') && url.contains('/raw/')) {
+          mirrorUrl = url.replaceAll('github.com', 'raw.githubusercontent.com').replaceAll('/raw/', '/');
+        }
+        if (mirrorUrl.contains('raw.githubusercontent.com') || mirrorUrl.contains('github.com')) {
+          mirrorUrl = 'https://ghproxy.com/$mirrorUrl';
+        }
+        subscription = Map.from(subscription)..['url'] = mirrorUrl;
+      }
+    }
     final response = await post('/scripts/subscriptions', body: subscription);
     return jsonDecode(response.body);
   }

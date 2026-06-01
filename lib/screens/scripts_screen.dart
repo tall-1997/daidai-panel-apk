@@ -9,6 +9,23 @@ import 'dart:convert';
 import 'dart:io';
 import 'home_screen.dart';
 
+// GitHub mirror acceleration for China mainland users
+// Converts github.com raw URLs to use mirror proxies
+String _applyGitHubMirror(String url) {
+  if (!url.contains('github.com') && !url.contains('raw.githubusercontent.com')) {
+    return url;
+  }
+  // Convert github.com raw URLs
+  if (url.contains('github.com') && url.contains('/raw/')) {
+    url = url.replaceAll('github.com', 'raw.githubusercontent.com').replaceAll('/raw/', '/');
+  }
+  // Apply mirror proxy (ghproxy.com is widely used in China)
+  if (url.contains('raw.githubusercontent.com') || url.contains('github.com')) {
+    return 'https://ghproxy.com/$url';
+  }
+  return url;
+}
+
 class ScriptsScreen extends StatefulWidget {
   const ScriptsScreen({super.key});
 
@@ -827,6 +844,16 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
                             icon: const Icon(Icons.sync, color: Colors.green),
                             onPressed: () async {
                               try {
+                                // Apply GitHub mirror acceleration
+                                final url = subscription['url'] ?? '';
+                                if (url.contains('github.com')) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('检测到GitHub链接，自动使用镜像加速...'),
+                                      duration: Duration(seconds: 1),
+                                    ),
+                                  );
+                                }
                                 await context.read<AuthService>().apiService
                                     .syncScriptSubscription(subscription['id']);
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -905,66 +932,150 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
   void _showAddSubscriptionDialog() {
     final nameController = TextEditingController();
     final urlController = TextEditingController();
+    final subDirController = TextEditingController();
+    final hookController = TextEditingController();
+    final depDescController = TextEditingController();
+    bool overwriteLocal = false;
     
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('添加脚本订阅'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: '订阅名称',
-                  border: OutlineInputBorder(),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('添加脚本订阅'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: '订阅名称 *',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: urlController,
-                decoration: const InputDecoration(
-                  labelText: '订阅地址',
-                  hintText: 'https://example.com/scripts.json',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: urlController,
+                  decoration: const InputDecoration(
+                    labelText: '订阅地址 *',
+                    hintText: 'https://example.com/scripts.json',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: subDirController,
+                  decoration: const InputDecoration(
+                    labelText: '指定子目录',
+                    hintText: '可选，如 subfolder',
+                    border: OutlineInputBorder(),
+                    helperText: '脚本将下载到指定子目录中',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: depDescController,
+                  decoration: const InputDecoration(
+                    labelText: '依赖说明',
+                    hintText: '可选，如 requests, flask',
+                    border: OutlineInputBorder(),
+                    helperText: '订阅脚本所需的依赖包',
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: hookController,
+                  decoration: const InputDecoration(
+                    labelText: '拉取后钩子',
+                    hintText: '可选，拉取后执行的命令',
+                    border: OutlineInputBorder(),
+                    helperText: '订阅同步后自动执行的命令',
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: MiuixColors.tertiaryContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline, size: 16, color: MiuixColors.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'GitHub链接将自动通过镜像加速下载',
+                          style: MiuixTextStyles.footnote1.copyWith(
+                            color: MiuixColors.onTertiaryContainer,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  value: overwriteLocal,
+                  onChanged: (v) => setDialogState(() => overwriteLocal = v ?? false),
+                  title: const Text('覆盖本地修改'),
+                  subtitle: const Text('同步时覆盖本地已修改的脚本'),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                if (nameController.text.isEmpty || urlController.text.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('请填写必填项'), backgroundColor: Colors.red),
+                  );
+                  return;
+                }
+                
+                try {
+                  final body = <String, dynamic>{
+                    'name': nameController.text,
+                    'url': urlController.text,
+                  };
+                  if (subDirController.text.isNotEmpty) {
+                    body['sub_dir'] = subDirController.text;
+                  }
+                  if (hookController.text.isNotEmpty) {
+                    body['post_pull_hook'] = hookController.text;
+                  }
+                  if (depDescController.text.isNotEmpty) {
+                    body['dependency_description'] = depDescController.text;
+                  }
+                  if (overwriteLocal) {
+                    body['overwrite_local'] = true;
+                  }
+                  
+                  await context.read<AuthService>().apiService.addScriptSubscription(body);
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('订阅已添加'), backgroundColor: Colors.green),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('添加失败: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              },
+              child: const Text('添加'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              if (nameController.text.isEmpty || urlController.text.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('请填写必填项'), backgroundColor: Colors.red),
-                );
-                return;
-              }
-              
-              try {
-                await context.read<AuthService>().apiService.addScriptSubscription({
-                  'name': nameController.text,
-                  'url': urlController.text,
-                });
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('订阅已添加'), backgroundColor: Colors.green),
-                );
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('添加失败: $e'), backgroundColor: Colors.red),
-                );
-              }
-            },
-            child: const Text('添加'),
-          ),
-        ],
       ),
     );
   }

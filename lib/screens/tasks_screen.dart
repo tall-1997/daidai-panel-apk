@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -8,6 +9,9 @@ import '../services/auth_service.dart';
 import '../theme/miuix_theme.dart';
 import '../widgets/miuix_widgets.dart';
 import 'home_screen.dart';
+
+const String _ungroupedLabel = '未分组';
+const String _prefsGroupOrderKey = 'task_group_order';
 
 class TasksScreen extends StatefulWidget {
   const TasksScreen({super.key});
@@ -25,9 +29,14 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
   bool _isSelectionMode = false;
   final Set<int> _selectedTasks = {};
 
+  final Map<String, bool> _groupCollapsed = {};
+  List<String> _groupOrder = [];
+  bool _isGroupSortMode = false;
+
   @override
   void initState() {
     super.initState();
+    _loadGroupOrder();
     _loadTasks();
   }
 
@@ -40,6 +49,61 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
   @override
   void refresh() {
     _loadTasks();
+  }
+
+  String _getTaskGroup(Map<String, dynamic> task) {
+    final group = task['group'];
+    if (group != null && group.toString().isNotEmpty) {
+      return group.toString();
+    }
+    final taskType = task['task_type'] ?? 'manual';
+    return taskType == 'cron' ? '定时任务' : '手动任务';
+  }
+
+  List<String> _getSortedGroupNames() {
+    final groups = <String>{};
+    for (final task in _tasks) {
+      groups.add(_getTaskGroup(task));
+    }
+
+    final knownGroups = _groupOrder.where(groups.contains).toList();
+    final newGroups = groups.where((g) => !knownGroups.contains(g)).toList();
+
+    if (_ungroupedLabel == '未分组' && newGroups.contains(_ungroupedLabel)) {
+      newGroups.remove(_ungroupedLabel);
+      return [...knownGroups, ...newGroups, _ungroupedLabel];
+    }
+
+    return [...knownGroups, ...newGroups];
+  }
+
+  List<Map<String, dynamic>> _getTasksInGroup(String groupName) {
+    return _tasks.where((t) => _getTaskGroup(t) == groupName).toList();
+  }
+
+  Future<void> _loadGroupOrder() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getStringList(_prefsGroupOrderKey);
+      if (saved != null) {
+        _groupOrder = saved;
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveGroupOrder() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_prefsGroupOrderKey, _groupOrder);
+    } catch (_) {}
+  }
+
+  void _ensureGroupCollapseState(List<String> groupNames) {
+    for (final name in groupNames) {
+      _groupCollapsed.putIfAbsent(name, () => name == _ungroupedLabel);
+    }
+    final currentGroups = groupNames.toSet();
+    _groupCollapsed.removeWhere((key, _) => !currentGroups.contains(key));
   }
 
   void _toggleSelectionMode() {
@@ -72,27 +136,27 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
 
   Future<void> _batchRunTasks() async {
     if (_selectedTasks.isEmpty) return;
-    
+
     try {
       final authService = context.read<AuthService>();
       int successCount = 0;
-      
+
       for (var taskId in _selectedTasks) {
         try {
           await authService.apiService.runTask(taskId);
           successCount++;
         } catch (e) {
-          // 继续运行其他任务
+          // continue
         }
       }
-      
+
       setState(() {
         _isSelectionMode = false;
         _selectedTasks.clear();
       });
-      
+
       _loadTasks();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('成功运行 $successCount 个任务'), backgroundColor: Colors.green),
@@ -109,27 +173,27 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
 
   Future<void> _batchStopTasks() async {
     if (_selectedTasks.isEmpty) return;
-    
+
     try {
       final authService = context.read<AuthService>();
       int successCount = 0;
-      
+
       for (var taskId in _selectedTasks) {
         try {
           await authService.apiService.stopTask(taskId);
           successCount++;
         } catch (e) {
-          // 继续停止其他任务
+          // continue
         }
       }
-      
+
       setState(() {
         _isSelectionMode = false;
         _selectedTasks.clear();
       });
-      
+
       _loadTasks();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('成功停止 $successCount 个任务'), backgroundColor: Colors.green),
@@ -146,7 +210,7 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
 
   Future<void> _batchDeleteTasks() async {
     if (_selectedTasks.isEmpty) return;
-    
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -165,29 +229,29 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
         ],
       ),
     );
-    
+
     if (confirmed != true) return;
-    
+
     try {
       final authService = context.read<AuthService>();
       int successCount = 0;
-      
+
       for (var taskId in _selectedTasks) {
         try {
           await authService.apiService.deleteTask(taskId);
           successCount++;
         } catch (e) {
-          // 继续删除其他任务
+          // continue
         }
       }
-      
+
       setState(() {
         _isSelectionMode = false;
         _selectedTasks.clear();
       });
-      
+
       _loadTasks();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('成功删除 $successCount 个任务'), backgroundColor: Colors.green),
@@ -231,8 +295,9 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
         setState(() {
           _tasks = List<Map<String, dynamic>>.from(result['data'] ?? []);
           _isLoading = false;
+          final groupNames = _getSortedGroupNames();
+          _ensureGroupCollapseState(groupNames);
         });
-        // Start auto refresh if any task is running
         if (_tasks.any((t) => t['status'] == 2)) {
           _startAutoRefresh();
         }
@@ -363,11 +428,11 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
     try {
       final authService = context.read<AuthService>();
       final result = await authService.apiService.exportTasks();
-      
+
       if (result['code'] == 0 || result['code'] == 200 || result['success'] == true) {
         final data = result['data'] ?? result['tasks'] ?? [];
         final jsonStr = const JsonEncoder.withIndent('  ').convert(data);
-        
+
         if (mounted) {
           showDialog(
             context: context,
@@ -424,7 +489,7 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
 
   Future<void> _importTasks() async {
     final controller = TextEditingController();
-    
+
     final jsonStr = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -458,16 +523,16 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
         ],
       ),
     );
-    
+
     if (jsonStr == null || jsonStr.isEmpty) return;
-    
+
     try {
       final List<dynamic> data = jsonDecode(jsonStr);
       final tasks = List<Map<String, dynamic>>.from(data);
-      
+
       final authService = context.read<AuthService>();
       final result = await authService.apiService.importTasks(tasks);
-      
+
       if (result['code'] == 0 || result['code'] == 200 || result['success'] == true) {
         _loadTasks();
         if (mounted) {
@@ -487,19 +552,164 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
     }
   }
 
+  void _showRenameGroupDialog(String groupName) {
+    final controller = TextEditingController(text: groupName);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('重命名分组'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: '分组名称',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final newName = controller.text.trim();
+              if (newName.isEmpty || newName == groupName) {
+                Navigator.pop(context);
+                return;
+              }
+
+              Navigator.pop(context);
+
+              final tasksInGroup = _getTasksInGroup(groupName);
+              final authService = context.read<AuthService>();
+              int successCount = 0;
+
+              for (final task in tasksInGroup) {
+                try {
+                  await authService.apiService.updateTask(task['id'], {'group': newName});
+                  successCount++;
+                } catch (_) {}
+              }
+
+              setState(() {
+                final idx = _groupOrder.indexOf(groupName);
+                if (idx >= 0) {
+                  _groupOrder[idx] = newName;
+                }
+                final collapsed = _groupCollapsed.remove(groupName);
+                if (collapsed != null) {
+                  _groupCollapsed[newName] = collapsed;
+                }
+              });
+              _saveGroupOrder();
+              _loadTasks();
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('已重命名 $successCount 个任务'), backgroundColor: Colors.green),
+                );
+              }
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteGroup(String groupName) async {
+    final tasksInGroup = _getTasksInGroup(groupName);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('删除分组'),
+        content: Text('确定要删除分组「$groupName」及其包含的 ${tasksInGroup.length} 个任务吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final authService = context.read<AuthService>();
+    int successCount = 0;
+
+    for (final task in tasksInGroup) {
+      try {
+        await authService.apiService.deleteTask(task['id']);
+        successCount++;
+      } catch (_) {}
+    }
+
+    setState(() {
+      _groupOrder.remove(groupName);
+      _groupCollapsed.remove(groupName);
+    });
+    _saveGroupOrder();
+    _loadTasks();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已删除 $successCount 个任务'), backgroundColor: Colors.green),
+      );
+    }
+  }
+
+  void _showCreateTaskInGroupDialog(String groupName) {
+    _showCreateTaskDialog(prefilledGroup: groupName);
+  }
+
+  void _toggleGroupSortMode() {
+    setState(() {
+      _isGroupSortMode = !_isGroupSortMode;
+    });
+  }
+
+  void _onGroupReorder(int oldIndex, int newIndex) {
+    setState(() {
+      final groupNames = _getSortedGroupNames();
+      if (oldIndex < groupNames.length && newIndex < groupNames.length) {
+        final movedGroup = groupNames.removeAt(oldIndex);
+        groupNames.insert(newIndex, movedGroup);
+
+        _groupOrder = groupNames;
+        _saveGroupOrder();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: _isSelectionMode 
+        title: _isSelectionMode
           ? Text('已选择 ${_selectedTasks.length} 项')
-          : const Text('任务管理'),
+          : _isGroupSortMode
+            ? const Text('拖拽排序分组')
+            : const Text('任务管理'),
         leading: _isSelectionMode
           ? IconButton(
               icon: const Icon(Icons.close),
               onPressed: _toggleSelectionMode,
             )
-          : null,
+          : _isGroupSortMode
+            ? IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: _toggleGroupSortMode,
+              )
+            : null,
         actions: [
           if (_isSelectionMode) ...[
             IconButton(
@@ -522,6 +732,12 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
               onPressed: _selectedTasks.isNotEmpty ? _batchDeleteTasks : null,
               tooltip: '批量删除',
             ),
+          ] else if (_isGroupSortMode) ...[
+            IconButton(
+              icon: const Icon(Icons.check),
+              onPressed: _toggleGroupSortMode,
+              tooltip: '完成排序',
+            ),
           ] else ...[
             PopupMenuButton(
               itemBuilder: (context) => [
@@ -541,12 +757,22 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
+                const PopupMenuItem(
+                  value: 'sort_groups',
+                  child: ListTile(
+                    leading: Icon(Icons.sort),
+                    title: Text('排序分组'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
               ],
               onSelected: (value) {
                 if (value == 'export') {
                   _exportTasks();
                 } else if (value == 'import') {
                   _importTasks();
+                } else if (value == 'sort_groups') {
+                  _toggleGroupSortMode();
                 }
               },
             ),
@@ -627,27 +853,97 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
       );
     }
 
+    final groupNames = _getSortedGroupNames();
+    _ensureGroupCollapseState(groupNames);
+
+    if (_isGroupSortMode) {
+      return _buildGroupSortList(groupNames);
+    }
+
+    return _buildGroupedListView(groupNames);
+  }
+
+  Widget _buildGroupSortList(List<String> groupNames) {
+    return ReorderableListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: groupNames.length,
+      onReorder: _onGroupReorder,
+      itemBuilder: (context, index) {
+        final groupName = groupNames[index];
+        final tasksInGroup = _getTasksInGroup(groupName);
+        return Card(
+          key: ValueKey(groupName),
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ListTile(
+            leading: const Icon(Icons.drag_handle),
+            title: Text(
+              groupName,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: Text('${tasksInGroup.length} 个任务'),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGroupedListView(List<String> groupNames) {
     return RefreshIndicator(
       onRefresh: _loadTasks,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: _tasks.length,
+        itemCount: groupNames.fold<int>(0, (sum, name) {
+          final isCollapsed = _groupCollapsed[name] ?? (name == _ungroupedLabel);
+          return sum + 1 + (isCollapsed ? 0 : _getTasksInGroup(name).length);
+        }),
         itemBuilder: (context, index) {
-          final task = _tasks[index];
-          final isSelected = _selectedTasks.contains(task['id']);
-          
-          return _TaskCard(
-            task: task,
-            isSelectionMode: _isSelectionMode,
-            isSelected: isSelected,
-            onSelectionChanged: () => _toggleTaskSelection(task['id']),
-            onRun: () => _runTask(task['id']),
-            onStop: () => _stopTask(task['id']),
-            onEnable: () => _enableTask(task['id']),
-            onDisable: () => _disableTask(task['id']),
-            onDelete: () => _deleteTask(task['id']),
-            onTap: () => _showTaskDetail(task),
-          );
+          int runningIndex = 0;
+          for (final groupName in groupNames) {
+            if (runningIndex == index) {
+              return _GroupHeader(
+                groupName: groupName,
+                taskCount: _getTasksInGroup(groupName).length,
+                isCollapsed: _groupCollapsed[groupName] ?? (groupName == _ungroupedLabel),
+                onToggleCollapse: () {
+                  setState(() {
+                    _groupCollapsed[groupName] =
+                        !(_groupCollapsed[groupName] ?? (groupName == _ungroupedLabel));
+                  });
+                },
+                onRename: () => _showRenameGroupDialog(groupName),
+                onDelete: () => _deleteGroup(groupName),
+                onAddTask: () => _showCreateTaskInGroupDialog(groupName),
+              );
+            }
+            runningIndex++;
+
+            final isCollapsed = _groupCollapsed[groupName] ?? (groupName == _ungroupedLabel);
+            if (!isCollapsed) {
+              final tasksInGroup = _getTasksInGroup(groupName);
+              final taskIndex = index - runningIndex;
+              if (taskIndex < tasksInGroup.length) {
+                final task = tasksInGroup[taskIndex];
+                final isSelected = _selectedTasks.contains(task['id']);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _TaskCard(
+                    task: task,
+                    isSelectionMode: _isSelectionMode,
+                    isSelected: isSelected,
+                    onSelectionChanged: () => _toggleTaskSelection(task['id']),
+                    onRun: () => _runTask(task['id']),
+                    onStop: () => _stopTask(task['id']),
+                    onEnable: () => _enableTask(task['id']),
+                    onDisable: () => _disableTask(task['id']),
+                    onDelete: () => _deleteTask(task['id']),
+                    onTap: () => _showTaskDetail(task),
+                  ),
+                );
+              }
+              runningIndex += tasksInGroup.length;
+            }
+          }
+          return const SizedBox.shrink();
         },
       ),
     );
@@ -670,14 +966,14 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
     );
   }
 
-  void _showCreateTaskDialog() {
+  void _showCreateTaskDialog({String? prefilledGroup}) {
     final nameController = TextEditingController();
     final commandController = TextEditingController();
     final cronController = TextEditingController();
     final timeoutController = TextEditingController(text: '0');
+    final groupController = TextEditingController(text: prefilledGroup ?? '');
     String taskType = 'cron';
 
-    // Common cron expressions
     final cronPresets = [
       {'label': '每分钟', 'value': '* * * * *'},
       {'label': '每小时', 'value': '0 * * * *'},
@@ -732,7 +1028,6 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  // Cron presets
                   Wrap(
                     spacing: 8,
                     runSpacing: 4,
@@ -767,6 +1062,15 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
                   ),
                   keyboardType: TextInputType.number,
                 ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: groupController,
+                  decoration: const InputDecoration(
+                    labelText: '分组名称',
+                    hintText: '留空则自动分组',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
               ],
             ),
           ),
@@ -786,13 +1090,15 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
 
                 try {
                   final authService = context.read<AuthService>();
-                  await authService.apiService.createTask({
+                  final body = <String, dynamic>{
                     'name': nameController.text,
                     'task_type': taskType,
                     'command': commandController.text,
                     'timeout': int.tryParse(timeoutController.text) ?? 0,
                     if (taskType == 'cron') 'cron_expression': cronController.text,
-                  });
+                    if (groupController.text.trim().isNotEmpty) 'group': groupController.text.trim(),
+                  };
+                  await authService.apiService.createTask(body);
                   Navigator.pop(context);
                   _loadTasks();
                 } catch (e) {
@@ -802,6 +1108,130 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
                 }
               },
               child: const Text('创建'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupHeader extends StatelessWidget {
+  final String groupName;
+  final int taskCount;
+  final bool isCollapsed;
+  final VoidCallback onToggleCollapse;
+  final VoidCallback onRename;
+  final VoidCallback onDelete;
+  final VoidCallback onAddTask;
+
+  const _GroupHeader({
+    required this.groupName,
+    required this.taskCount,
+    required this.isCollapsed,
+    required this.onToggleCollapse,
+    required this.onRename,
+    required this.onDelete,
+    required this.onAddTask,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return GestureDetector(
+      onLongPress: () {
+        final state = context.findAncestorStateOfType<_TasksScreenState>();
+        state?._toggleGroupSortMode();
+      },
+      child: Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 4),
+        child: Row(
+          children: [
+            GestureDetector(
+              onTap: onToggleCollapse,
+              child: Icon(
+                isCollapsed ? Icons.expand_more : Icons.expand_less,
+                size: 22,
+                color: isDark
+                    ? MiuixColors.darkOnSurfaceVariantSummary
+                    : MiuixColors.onSurfaceVariantSummary,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: GestureDetector(
+                onTap: onToggleCollapse,
+                child: Text(
+                  groupName,
+                  style: MiuixTextStyles.headline2.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
+                  ),
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: MiuixColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$taskCount',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: MiuixColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            PopupMenuButton<String>(
+              icon: Icon(
+                Icons.more_vert,
+                size: 20,
+                color: isDark
+                    ? MiuixColors.darkOnSurfaceVariantActions
+                    : MiuixColors.onSurfaceVariantActions,
+              ),
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'rename',
+                  child: ListTile(
+                    leading: Icon(Icons.edit),
+                    title: Text('重命名分组'),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'add_task',
+                  child: ListTile(
+                    leading: Icon(Icons.add),
+                    title: Text('批量添加任务'),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: ListTile(
+                    leading: Icon(Icons.delete, color: Colors.red),
+                    title: Text('删除分组', style: TextStyle(color: Colors.red)),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+              onSelected: (value) {
+                if (value == 'rename') {
+                  onRename();
+                } else if (value == 'delete') {
+                  onDelete();
+                } else if (value == 'add_task') {
+                  onAddTask();
+                }
+              },
             ),
           ],
         ),
@@ -845,7 +1275,7 @@ class _TaskCard extends StatelessWidget {
     final lastRunAt = task['last_run_at'] ?? '';
     final isPinned = task['is_pinned'] ?? false;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     Color statusColor;
     String statusText;
     final statusNum = status is int ? status.toDouble() : (status ?? 0.0);
@@ -1020,8 +1450,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
       final taskId = widget.task['id'];
       final status = widget.task['status'] ?? 0;
       final statusNum = status is int ? status.toDouble() : (status ?? 0.0);
-      
-      // For running tasks, try live-logs first
+
       if (statusNum == 2) {
         try {
           final liveResult = await authService.apiService.getTaskLiveLogs(taskId);
@@ -1041,17 +1470,13 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
               return;
             }
           }
-        } catch (_) {
-          // Fall through to normal logs
-        }
+        } catch (_) {}
       }
-      
-      // Normal log list
+
       final result = await authService.apiService.getLogs(taskId: taskId, pageSize: 20);
       if (mounted) {
         final logList = List<Map<String, dynamic>>.from(result['data'] ?? result['logs'] ?? []);
-        
-        // Fetch full content for each log (content may be compressed)
+
         for (int i = 0; i < logList.length && i < 10; i++) {
           final logId = logList[i]['id'];
           if (logId != null && (logList[i]['content'] == null || logList[i]['content'].toString().isEmpty)) {
@@ -1065,7 +1490,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
             } catch (_) {}
           }
         }
-        
+
         setState(() {
           _taskLogs = logList;
           _isLoadingLogs = false;
@@ -1081,18 +1506,14 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
   String _cleanLogContent(dynamic content) {
     if (content == null) return '';
     String str = content.toString();
-    
-    // Try to decode compressed/encoded content
+
     if (str.length > 8 && RegExp(r'^[A-Za-z0-9+/=\s]+$').hasMatch(str.trim())) {
       try {
         final bytes = base64Decode(str.trim());
         str = _decompressBytes(bytes);
-      } catch (e) {
-        // Not valid base64, use as-is
-      }
+      } catch (e) {}
     }
-    
-    // Remove ANSI escape sequences
+
     str = str.replaceAll(RegExp(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])'), '');
     str = str.replaceAll(RegExp(r'\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)'), '');
     str = str.replaceAll(RegExp(r'\[(?:\d+;)*\d+[A-Za-z]'), '');
@@ -1125,6 +1546,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
     final lastRunAt = widget.task['last_run_at'] ?? '';
     final nextRunAt = widget.task['next_run_at'] ?? '';
     final timeout = widget.task['timeout'] ?? 0;
+    final group = widget.task['group'] ?? '';
 
     Color statusColor;
     String statusText;
@@ -1188,6 +1610,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
           ),
           const SizedBox(height: 24),
           _buildDetailRow('任务类型', taskType == 'cron' ? '定时任务' : '手动任务'),
+          _buildDetailRow('分组', group.isEmpty ? '自动分组' : group),
           _buildDetailRow('Cron 表达式', cronExpression.isEmpty ? '无' : cronExpression),
           _buildDetailRow('执行命令', command),
           _buildDetailRow('超时时间', '${timeout}秒'),
@@ -1196,7 +1619,6 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
           _buildDetailRow('更新时间', updatedAt),
           _buildDetailRow('上次运行', lastRunAt.isEmpty ? '未运行' : lastRunAt),
           _buildDetailRow('下次运行', nextRunAt.isEmpty ? '无' : nextRunAt),
-          // History logs section
           const Divider(height: 32),
           Row(
             children: [

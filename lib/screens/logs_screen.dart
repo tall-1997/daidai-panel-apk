@@ -22,6 +22,8 @@ class _LogsScreenState extends State<LogsScreen> with RefreshableScreen {
   int _totalLogs = 0;
   final int _pageSize = 50;
   String _filterStatus = 'all'; // all, success, failed, running
+  bool _isSelectionMode = false;
+  final Set<int> _selectedLogs = {};
 
   @override
   void initState() {
@@ -32,6 +34,93 @@ class _LogsScreenState extends State<LogsScreen> with RefreshableScreen {
   @override
   void refresh() {
     _loadLogs();
+  }
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _isSelectionMode = !_isSelectionMode;
+      if (!_isSelectionMode) {
+        _selectedLogs.clear();
+      }
+    });
+  }
+
+  void _toggleLogSelection(int logId) {
+    setState(() {
+      if (_selectedLogs.contains(logId)) {
+        _selectedLogs.remove(logId);
+      } else {
+        _selectedLogs.add(logId);
+      }
+    });
+  }
+
+  void _selectAllLogs() {
+    setState(() {
+      final filteredLogs = _getFilteredLogs();
+      _selectedLogs.clear();
+      for (var log in filteredLogs) {
+        _selectedLogs.add(log['id']);
+      }
+    });
+  }
+
+  Future<void> _batchDeleteLogs() async {
+    if (_selectedLogs.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('批量删除'),
+        content: Text('确定要删除选中的 ${_selectedLogs.length} 条日志吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final authService = context.read<AuthService>();
+      int successCount = 0;
+
+      for (var logId in _selectedLogs) {
+        try {
+          await authService.apiService.deleteLog(logId);
+          successCount++;
+        } catch (e) {
+          // 继续删除其他日志
+        }
+      }
+
+      setState(() {
+        _isSelectionMode = false;
+        _selectedLogs.clear();
+      });
+
+      _loadLogs();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('成功删除 $successCount 条日志'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('批量删除失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Future<void> _loadLogs({bool loadMore = false}) async {
@@ -98,11 +187,37 @@ class _LogsScreenState extends State<LogsScreen> with RefreshableScreen {
   }
 
   Future<void> _clearOldLogs() async {
-    final confirmed = await showDialog<bool>(
+    final selectedDays = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('清理旧日志'),
-        content: const Text('确定要清理7天前的日志吗？此操作不可撤销。'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('选择要清理多少天前的日志：'),
+            const SizedBox(height: 16),
+            _buildDayOption(context, '1 天', 1),
+            _buildDayOption(context, '3 天', 3),
+            _buildDayOption(context, '7 天', 7),
+            _buildDayOption(context, '30 天', 30),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
+
+    if (selectedDays == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('确认清理'),
+        content: Text('确定要清理 $selectedDays 天前的日志吗？此操作不可撤销。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -119,12 +234,11 @@ class _LogsScreenState extends State<LogsScreen> with RefreshableScreen {
     if (confirmed == true) {
       try {
         final authService = context.read<AuthService>();
-        // Call API to clear old logs
-        await authService.apiService.post('/logs/clear', body: {'days': 7});
+        await authService.apiService.clearLogsByDays(selectedDays);
         _loadLogs();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('旧日志已清理')),
+            SnackBar(content: Text('已清理 $selectedDays 天前的日志'), backgroundColor: Colors.green),
           );
         }
       } catch (e) {
@@ -135,6 +249,17 @@ class _LogsScreenState extends State<LogsScreen> with RefreshableScreen {
         }
       }
     }
+  }
+
+  Widget _buildDayOption(BuildContext context, String label, int days) {
+    return ListTile(
+      title: Text(label),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => Navigator.pop(context, days),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+    );
   }
 
   List<Map<String, dynamic>> _getFilteredLogs() {
@@ -156,17 +281,43 @@ class _LogsScreenState extends State<LogsScreen> with RefreshableScreen {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('日志管理 ($_totalLogs)'),
+        title: _isSelectionMode
+          ? Text('已选择 ${_selectedLogs.length} 项')
+          : Text('日志管理 ($_totalLogs)'),
+        leading: _isSelectionMode
+          ? IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: _toggleSelectionMode,
+            )
+          : null,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.cleaning_services),
-            onPressed: _clearOldLogs,
-            tooltip: '清理旧日志',
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => _loadLogs(),
-          ),
+          if (_isSelectionMode) ...[
+            IconButton(
+              icon: const Icon(Icons.select_all),
+              onPressed: _selectAllLogs,
+              tooltip: '全选',
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: _selectedLogs.isNotEmpty ? _batchDeleteLogs : null,
+              tooltip: '批量删除',
+            ),
+          ] else ...[
+            IconButton(
+              icon: const Icon(Icons.cleaning_services),
+              onPressed: _clearOldLogs,
+              tooltip: '清理旧日志',
+            ),
+            IconButton(
+              icon: const Icon(Icons.checklist),
+              onPressed: _toggleSelectionMode,
+              tooltip: '批量操作',
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () => _loadLogs(),
+            ),
+          ],
         ],
       ),
       body: Column(
@@ -313,10 +464,16 @@ class _LogsScreenState extends State<LogsScreen> with RefreshableScreen {
           }
 
           final log = filteredLogs[index];
+          final isSelected = _selectedLogs.contains(log['id']);
+
           return _LogCard(
             log: log,
+            isSelectionMode: _isSelectionMode,
+            isSelected: isSelected,
+            onSelectionChanged: () => _toggleLogSelection(log['id']),
             onDelete: () => _deleteLog(log['id']),
-            onTap: () => _showLogDetail(log),
+            onTap: () => _isSelectionMode ? _toggleLogSelection(log['id']) : _showLogDetail(log),
+            onLongPress: _toggleSelectionMode,
           );
         },
       ),
@@ -343,11 +500,19 @@ class _LogsScreenState extends State<LogsScreen> with RefreshableScreen {
 
 class _LogCard extends StatelessWidget {
   final Map<String, dynamic> log;
+  final bool isSelectionMode;
+  final bool isSelected;
+  final VoidCallback? onSelectionChanged;
+  final VoidCallback? onLongPress;
   final VoidCallback onDelete;
   final VoidCallback onTap;
 
   const _LogCard({
     required this.log,
+    this.isSelectionMode = false,
+    this.isSelected = false,
+    this.onSelectionChanged,
+    this.onLongPress,
     required this.onDelete,
     required this.onTap,
   });
@@ -402,6 +567,7 @@ class _LogCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: InkWell(
         onTap: onTap,
+        onLongPress: !isSelectionMode ? onLongPress : null,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -410,6 +576,15 @@ class _LogCard extends StatelessWidget {
             children: [
               Row(
                 children: [
+                  if (isSelectionMode)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Icon(
+                        isSelected ? Icons.check_circle : Icons.circle_outlined,
+                        color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey,
+                        size: 20,
+                      ),
+                    ),
                   Icon(statusIcon, color: statusColor, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
@@ -480,16 +655,18 @@ class _LogCard extends StatelessWidget {
                       ),
                     ),
                   ],
-                  const SizedBox(width: 4),
-                  SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: InkWell(
-                      onTap: onDelete,
-                      borderRadius: BorderRadius.circular(12),
-                      child: const Icon(Icons.delete, size: 16, color: Colors.red),
+                  if (!isSelectionMode) ...[
+                    const SizedBox(width: 4),
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: InkWell(
+                        onTap: onDelete,
+                        borderRadius: BorderRadius.circular(12),
+                        child: const Icon(Icons.delete, size: 16, color: Colors.red),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ],

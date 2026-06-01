@@ -20,6 +20,8 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
   String? _error;
   bool _isSelectionMode = false;
   final Set<int> _selectedEnvs = {};
+  bool _isSortMode = false;
+  bool _isSavingSort = false;
 
   @override
   void initState() {
@@ -58,6 +60,53 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
         _selectedEnvs.add(env['id']);
       }
     });
+  }
+
+  void _enterSortMode() {
+    setState(() {
+      _isSortMode = true;
+    });
+  }
+
+  void _exitSortMode() {
+    setState(() {
+      _isSortMode = false;
+    });
+  }
+
+  Future<void> _saveSortOrder() async {
+    setState(() {
+      _isSavingSort = true;
+    });
+
+    try {
+      final authService = context.read<AuthService>();
+      final ids = _envs.map((e) => e['id'] as int).toList();
+      await authService.apiService.sortEnvs(ids);
+
+      setState(() {
+        _isSortMode = false;
+        _isSavingSort = false;
+      });
+
+      _loadEnvs();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('排序已保存'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isSavingSort = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('保存排序失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Future<void> _batchDeleteEnvs() async {
@@ -374,21 +423,45 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
     }
   }
 
+  void _onReorder(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) {
+        newIndex -= 1;
+      }
+      final item = _envs.removeAt(oldIndex);
+      _envs.insert(newIndex, item);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: _isSelectionMode 
+        title: _isSelectionMode
           ? Text('已选择 ${_selectedEnvs.length} 项')
-          : const Text('环境变量'),
-        leading: _isSelectionMode
+          : _isSortMode
+            ? const Text('拖拽排序')
+            : const Text('环境变量'),
+        leading: _isSelectionMode || _isSortMode
           ? IconButton(
               icon: const Icon(Icons.close),
-              onPressed: _toggleSelectionMode,
+              onPressed: _isSelectionMode ? _toggleSelectionMode : _exitSortMode,
             )
           : null,
         actions: [
-          if (_isSelectionMode) ...[
+          if (_isSortMode) ...[
+            TextButton.icon(
+              onPressed: _isSavingSort ? null : _saveSortOrder,
+              icon: _isSavingSort
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.save),
+              label: const Text('保存排序'),
+            ),
+          ] else if (_isSelectionMode) ...[
             IconButton(
               icon: const Icon(Icons.select_all),
               onPressed: _selectAllEnvs,
@@ -428,12 +501,22 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
+                const PopupMenuItem(
+                  value: 'sort',
+                  child: ListTile(
+                    leading: Icon(Icons.sort),
+                    title: Text('拖拽排序'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
               ],
               onSelected: (value) {
                 if (value == 'export') {
                   _exportEnvs();
                 } else if (value == 'import') {
                   _importEnvs();
+                } else if (value == 'sort') {
+                  _enterSortMode();
                 }
               },
             ),
@@ -450,7 +533,7 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
         ],
       ),
       body: _buildBody(),
-      floatingActionButton: _isSelectionMode
+      floatingActionButton: _isSelectionMode || _isSortMode
         ? null
         : FloatingActionButton(
             onPressed: () => _showCreateEnvDialog(),
@@ -509,6 +592,28 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
       );
     }
 
+    if (_isSortMode) {
+      return ReorderableListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _envs.length,
+        onReorder: _onReorder,
+        itemBuilder: (context, index) {
+          final env = _envs[index];
+          return _EnvCard(
+            key: ValueKey(env['id']),
+            env: env,
+            isSortMode: true,
+            isSelectionMode: false,
+            isSelected: false,
+            onSelectionChanged: null,
+            onToggle: (enabled) => _toggleEnv(env['id'], enabled),
+            onDelete: () => _deleteEnv(env['id']),
+            onEdit: () => _showEditEnvDialog(env),
+          );
+        },
+      );
+    }
+
     return RefreshIndicator(
       onRefresh: _loadEnvs,
       child: ListView.builder(
@@ -526,6 +631,7 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
             onToggle: (enabled) => _toggleEnv(env['id'], enabled),
             onDelete: () => _deleteEnv(env['id']),
             onEdit: () => _showEditEnvDialog(env),
+            onLongPress: _enterSortMode,
           );
         },
       ),
@@ -681,17 +787,22 @@ class _EnvsScreenState extends State<EnvsScreen> with RefreshableScreen {
 class _EnvCard extends StatelessWidget {
   final Map<String, dynamic> env;
   final bool isSelectionMode;
+  final bool isSortMode;
   final bool isSelected;
   final VoidCallback? onSelectionChanged;
+  final VoidCallback? onLongPress;
   final Function(bool) onToggle;
   final VoidCallback onDelete;
   final VoidCallback onEdit;
 
   const _EnvCard({
+    super.key,
     required this.env,
     this.isSelectionMode = false,
+    this.isSortMode = false,
     this.isSelected = false,
     this.onSelectionChanged,
+    this.onLongPress,
     required this.onToggle,
     required this.onDelete,
     required this.onEdit,
@@ -708,6 +819,7 @@ class _EnvCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
         onTap: isSelectionMode ? onSelectionChanged : null,
+        onLongPress: (!isSelectionMode && !isSortMode) ? onLongPress : null,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -716,6 +828,14 @@ class _EnvCard extends StatelessWidget {
             children: [
               Row(
                 children: [
+                  if (isSortMode)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Icon(
+                        Icons.drag_handle,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   if (isSelectionMode)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
@@ -732,7 +852,7 @@ class _EnvCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (!isSelectionMode)
+                  if (!isSelectionMode && !isSortMode)
                     Switch(
                       value: enabled,
                       onChanged: onToggle,
@@ -760,7 +880,7 @@ class _EnvCard extends StatelessWidget {
                   ),
                 ),
               ],
-              if (!isSelectionMode) ...[
+              if (!isSelectionMode && !isSortMode) ...[
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
