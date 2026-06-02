@@ -818,7 +818,7 @@ async function handleImport(event: Event) {
         :row-style="{ cursor: 'pointer' }"
       >
         <el-table-column v-if="canOperateTasks" type="selection" width="40" />
-        <el-table-column label="任务名称" min-width="100">
+        <el-table-column label="任务名称" min-width="80">
           <template #default="{ row }">
             <div class="task-name-cell">
               <el-icon v-if="row.is_pinned" class="pin-icon" :class="{ 'is-readonly': !canOperateTasks }" @click.stop="canOperateTasks && handlePin(row)"><Star /></el-icon>
@@ -849,7 +849,7 @@ async function handleImport(event: Event) {
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="命令 / 脚本" min-width="100">
+        <el-table-column label="命令 / 脚本" min-width="80">
           <template #default="{ row }">
             <code class="command-text">
               <template v-if="splitTaskCommandDisplay(row.command).script">
@@ -861,7 +861,7 @@ async function handleImport(event: Event) {
             </code>
           </template>
         </el-table-column>
-        <el-table-column label="定时规则" min-width="100">
+        <el-table-column label="定时规则" min-width="70">
           <template #default="{ row }">
             <template v-if="row.task_type === 'cron'">
               <TaskCronList
@@ -905,7 +905,7 @@ async function handleImport(event: Event) {
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="210" fixed="right" align="center">
+        <el-table-column label="操作" width="260" fixed="right" align="center">
           <template #default="{ row }">
             <div class="action-btns">
               <el-button v-if="canOperateTasks && row.status !== 2" type="primary" text size="small" @click="handleRun(row)">运行</el-button>
@@ -1284,10 +1284,10 @@ async function handleImport(event: Event) {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0;
+  gap: 4px;
 
   :deep(.el-button) {
-    padding: 4px 6px;
+    padding: 4px 8px;
   }
 }
 
@@ -1350,6 +1350,12 @@ async function handleImport(event: Event) {
 
   .el-table__cell {
     padding: 12px 0;
+  }
+
+  .el-table-column--selection .cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 

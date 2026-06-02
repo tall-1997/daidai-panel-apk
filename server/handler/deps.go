@@ -729,9 +729,30 @@ func buildDependencyFailureHint(logText string) string {
 		strings.Contains(lower, "connection timed out") ||
 		strings.Contains(lower, "failed to fetch"):
 		return "[检测到网络或镜像源异常，请检查 Linux 镜像源配置、代理设置和宿主机网络连通性]"
+	case isAlpineGlibcIncompatible(lower):
+		return "[当前容器使用 Alpine 镜像（musl libc），该依赖需要 glibc 环境，无法在 Alpine 上安装。请切换到 Debian 版镜像（如 linzixuan/daidai-panel:debian）后重试]"
 	default:
 		return ""
 	}
+}
+
+func isAlpineGlibcIncompatible(lowerLog string) bool {
+	if detectLinuxDistribution() != "alpine" {
+		return false
+	}
+	glibcHints := []string{
+		"no matching distribution",
+		"resolutionimpossible",
+		"not a supported wheel on this platform",
+		"failed to build installable wheels",
+		"manylinux",
+	}
+	for _, hint := range glibcHints {
+		if strings.Contains(lowerLog, hint) {
+			return true
+		}
+	}
+	return false
 }
 
 func ensureTmpDir() {

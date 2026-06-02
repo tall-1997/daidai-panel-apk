@@ -202,7 +202,10 @@ func main() {
 		log.Fatalf("failed to apply trusted proxies to gin engine: %v", err)
 	}
 	engine.RemoteIPHeaders = []string{"X-Real-IP", "X-Forwarded-For"}
-	engine.Use(gin.LoggerWithWriter(service.NewGINLoggerWriter(service.NewPanelLogFilterWriter(panelWriter))))
+	engine.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+		Output:    service.NewGINLoggerWriter(service.NewPanelLogFilterWriter(panelWriter)),
+		SkipPaths: []string{"/api/v1/health", "/api/health"},
+	}))
 	engine.Use(gin.Recovery())
 
 	router.Setup(engine)

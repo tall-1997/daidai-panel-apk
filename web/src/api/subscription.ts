@@ -25,8 +25,8 @@ export const subscriptionApi = {
     return request.put(`/subscriptions/${id}/disable`) as Promise<{ message: string; data: any }>
   },
 
-  pull(id: number, params?: Record<string, string>) {
-    return request.put(`/subscriptions/${id}/pull`, null, { params }) as Promise<{ message: string }>
+  pull(id: number) {
+    return request.put(`/subscriptions/${id}/pull`) as Promise<{ message: string }>
   },
 
   stopPull(id: number) {

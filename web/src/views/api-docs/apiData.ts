@@ -708,7 +708,7 @@ panel.add_or_update_env(
         method: 'PUT',
         path: '/api/subscriptions/:id/pull',
         title: '手动拉取订阅',
-        description: '立即拉取指定订阅的脚本',
+        description: '立即拉取指定订阅的脚本。拉取时是否覆盖本地修改由订阅设置中的「覆盖拉取」开关控制，本接口不再接收临时覆盖模式参数。',
         auth: 'jwt',
         pathParams: [{ name: 'id', type: 'integer', required: true, description: '订阅 ID' }],
         responseExample: JSON.stringify({ message: '拉取成功，拉取 5 个文件，新增 3 个任务' }, null, 2),

@@ -46,6 +46,7 @@ const settingsForm = ref({
   github_mirror: '',
   auto_add_cron: true,
   auto_del_cron: true,
+  subscription_force_overwrite: true,
   default_cron_rule: '',
   repo_file_extensions: ''
 })
@@ -80,8 +81,7 @@ const editForm = ref({
   auth_username: '',
   auth_token: '',
   has_auth_token: false,
-  alias: '',
-  force_overwrite: true
+  alias: ''
 })
 
 const sshKeys = ref<any[]>([])
@@ -174,8 +174,7 @@ function openCreate() {
   editForm.value = {
     id: 0, name: '', type: 'git-repo', url: '', branch: '', schedule: '',
     whitelist: '', blacklist: '', depend_on: '', hook_script: '', auto_add_task: false,
-    auto_del_task: false, save_dir: '', sub_path: '', auth_type: '', ssh_key_id: null, auth_username: '', auth_token: '', has_auth_token: false, alias: '',
-    force_overwrite: true
+    auto_del_task: false, save_dir: '', sub_path: '', auth_type: '', ssh_key_id: null, auth_username: '', auth_token: '', has_auth_token: false, alias: ''
   }
   showEditDialog.value = true
 }
@@ -217,6 +216,7 @@ async function handleOpenSettings() {
     const cfgs = res.data || {}
     settingsForm.value.auto_add_cron = readCfgBool(cfgs, 'auto_add_cron', true)
     settingsForm.value.auto_del_cron = readCfgBool(cfgs, 'auto_del_cron', true)
+    settingsForm.value.subscription_force_overwrite = readCfgBool(cfgs, 'subscription_force_overwrite', true)
     settingsForm.value.default_cron_rule = readCfgStr(cfgs, 'default_cron_rule', '')
     settingsForm.value.repo_file_extensions = readCfgStr(cfgs, 'repo_file_extensions', '')
   } catch (err: any) {
@@ -237,6 +237,7 @@ async function handleSaveSettings() {
     await configApi.batchSet({
       auto_add_cron: settingsForm.value.auto_add_cron ? 'true' : 'false',
       auto_del_cron: settingsForm.value.auto_del_cron ? 'true' : 'false',
+      subscription_force_overwrite: settingsForm.value.subscription_force_overwrite ? 'true' : 'false',
       default_cron_rule: settingsForm.value.default_cron_rule,
       repo_file_extensions: settingsForm.value.repo_file_extensions
     })
@@ -340,8 +341,7 @@ function openEdit(row: any) {
     depend_on: row.depend_on || '', hook_script: row.hook_script || '', auto_add_task: row.auto_add_task,
     auto_del_task: row.auto_del_task, save_dir: row.save_dir || '', sub_path: row.sub_path || '',
     auth_type: row.auth_type || '',
-    ssh_key_id: row.ssh_key_id, auth_username: row.auth_username || '', auth_token: '', has_auth_token: !!row.has_auth_token, alias: row.alias || '',
-    force_overwrite: row.force_overwrite !== false
+    ssh_key_id: row.ssh_key_id, auth_username: row.auth_username || '', auth_token: '', has_auth_token: !!row.has_auth_token, alias: row.alias || ''
   }
   showEditDialog.value = true
 }
@@ -428,16 +428,15 @@ async function handleToggle(row: any) {
   }
 }
 
-async function handlePullWithMode(row: any, mode: string) {
+async function handlePull(row: any) {
   if (pullingSubId.value === row.id && pullRunning.value) {
     showPullLog.value = true
     return
   }
 
-  const modeLabels: Record<string, string> = { default: '按订阅设置', force: '覆盖', keep: '保留本地修改' }
   try {
     await ElMessageBox.confirm(
-      `确认以「${modeLabels[mode] || '默认'}」模式拉取订阅「${row.name}」吗？`,
+      `确认按订阅设置拉取订阅「${row.name}」吗？`,
       '拉取确认',
       { type: 'warning', confirmButtonText: '立即拉取', cancelButtonText: '取消' }
     )
@@ -446,10 +445,7 @@ async function handlePullWithMode(row: any, mode: string) {
   }
 
   try {
-    const params: Record<string, string> = {}
-    if (mode === 'force') params.force_overwrite = 'true'
-    else if (mode === 'keep') params.force_overwrite = 'false'
-    await subscriptionApi.pull(row.id, params)
+    await subscriptionApi.pull(row.id)
     pullLogLines.value = []
     pullRunning.value = true
     pullingSubId.value = row.id
@@ -465,10 +461,6 @@ async function handlePullWithMode(row: any, mode: string) {
     }
     ElMessage.error(err?.response?.data?.error || '拉取失败')
   }
-}
-
-async function handlePull(row: any) {
-  await handlePullWithMode(row, 'default')
 }
 
 async function handleStopPull() {
@@ -764,16 +756,7 @@ function viewLogDetail(log: any) {
           </div>
 
           <div class="dd-mobile-card__actions subscription-card__actions">
-            <el-dropdown trigger="click" @command="(cmd: string) => handlePullWithMode(row, cmd)">
-              <el-button size="small" type="success">拉取</el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="default">按订阅设置拉取</el-dropdown-item>
-                  <el-dropdown-item command="force">覆盖拉取</el-dropdown-item>
-                  <el-dropdown-item command="keep">保留本地修改拉取</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+            <el-button size="small" type="success" @click="handlePull(row)">拉取</el-button>
             <el-button size="small" @click="openLogs(row.id)">日志</el-button>
             <el-button size="small" type="primary" plain @click="openEdit(row)">编辑</el-button>
             <el-button size="small" type="danger" plain @click="handleDelete(row.id)">删除</el-button>
@@ -834,16 +817,7 @@ function viewLogDetail(log: any) {
         <el-table-column label="操作" width="200" fixed="right" align="center">
           <template #default="{ row }">
             <div class="action-btns">
-              <el-dropdown trigger="click" @command="(cmd: string) => handlePullWithMode(row, cmd)">
-                <el-button size="small" type="success" text>拉取</el-button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="default">按订阅设置</el-dropdown-item>
-                    <el-dropdown-item command="force">覆盖拉取</el-dropdown-item>
-                    <el-dropdown-item command="keep">保留本地</el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
+              <el-button size="small" type="success" text @click="handlePull(row)">拉取</el-button>
               <el-button size="small" text @click="openLogs(row.id)">日志</el-button>
               <el-button size="small" text type="primary" @click="openEdit(row)">编辑</el-button>
               <el-button size="small" text type="danger" @click="handleDelete(row.id)">删除</el-button>
@@ -948,12 +922,6 @@ function viewLogDetail(log: any) {
         <el-form-item label="依赖说明">
           <el-input v-model="editForm.depend_on" placeholder="用于记录订阅依赖、过滤说明或迁移信息" />
         </el-form-item>
-        <el-form-item v-if="editForm.type === 'git-repo'" label="覆盖本地修改">
-          <el-switch v-model="editForm.force_overwrite" />
-          <span style="margin-left: 8px; color: var(--el-text-color-secondary); font-size: 12px">
-            {{ editForm.force_overwrite ? '拉取时覆盖本地修改并清理多余文件' : '拉取时保留本地修改的文件' }}
-          </span>
-        </el-form-item>
         <el-form-item label="拉取后钩子">
           <el-input
             v-model="editForm.hook_script"
@@ -1003,11 +971,11 @@ function viewLogDetail(log: any) {
     </el-dialog>
 
     <el-dialog v-model="showLogDetail" title="日志详情" width="900px" :fullscreen="dialogFullscreen">
-      <pre class="pull-log-content" style="min-height: 100px" v-html="logDetailContentHtml"></pre>
+      <pre class="pull-log-content dd-log-surface" style="min-height: 100px" v-html="logDetailContentHtml"></pre>
     </el-dialog>
 
     <el-dialog v-model="showPullLog" title="拉取日志" width="900px" :fullscreen="dialogFullscreen" :close-on-click-modal="false" @close="closePullStream">
-      <div ref="pullLogRef" class="pull-log-content">
+      <div ref="pullLogRef" class="pull-log-content dd-log-surface">
         <div v-for="(line, i) in pullLogLineHtmlList" :key="i" class="pull-log-line" v-html="line"></div>
         <div v-if="pullRunning" class="pull-log-line pull-running">
       <span class="pull-spinner"></span> 拉取中...
@@ -1039,6 +1007,10 @@ function viewLogDetail(log: any) {
         <el-form-item label="自动删除失效任务">
           <el-switch v-model="settingsForm.auto_del_cron" inline-prompt active-text="开" inactive-text="关" />
           <div class="settings-hint">订阅源删除脚本后，自动删除对应定时任务</div>
+        </el-form-item>
+        <el-form-item label="覆盖拉取">
+          <el-switch v-model="settingsForm.subscription_force_overwrite" inline-prompt active-text="开" inactive-text="关" />
+          <div class="settings-hint">开启后拉取时用远端内容覆盖本地修改并清理多余文件；关闭后尝试保留本地修改。</div>
         </el-form-item>
         <el-form-item label="默认 Cron 规则">
           <el-input v-model="settingsForm.default_cron_rule" placeholder="0 9 * * *" />
@@ -1218,7 +1190,7 @@ function viewLogDetail(log: any) {
 .subscription-card__actions > * { flex: 1 1 calc(50% - 4px); }
 
 .pull-log-content {
-  background: #1e1e1e; color: #d4d4d4; font-family: var(--dd-font-mono, monospace);
+  font-family: var(--dd-font-mono, monospace);
   font-size: 13px; line-height: 1.6; padding: 12px 16px; border-radius: 6px;
   max-height: 560px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
 }

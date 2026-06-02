@@ -119,6 +119,7 @@ const configFields = computed(() => {
     case 'telegram': return [
       { key: 'token', label: 'Bot Token', type: 'input', placeholder: '从 @BotFather 获取' },
       { key: 'chat_id', label: 'Chat ID', type: 'input', placeholder: '聊天/群组 ID' },
+      { key: 'message_thread_id', label: 'Topic ID (可选)', type: 'input', placeholder: '群组话题 ID，留空则发到默认话题' },
       { key: 'api_host', label: 'API 地址 (可选)', type: 'input', placeholder: '自定义 API 地址，留空使用官方' },
       { key: 'proxy', label: '代理地址 (可选)', type: 'input', placeholder: 'http/socks5 代理地址' },
     ]
@@ -544,6 +545,7 @@ function getChannelConfigSummary(row: any): string[] {
       break
     case 'telegram':
       if (config.chat_id) lines.push(`Chat ${String(config.chat_id)}`)
+      if (config.message_thread_id) lines.push(`Topic ${String(config.message_thread_id)}`)
       if (config.api_host) lines.push(`API ${extractDisplayHost(config.api_host)}`)
       break
     case 'gotify':

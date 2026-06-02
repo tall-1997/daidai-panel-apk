@@ -828,7 +828,6 @@ function handleClose() {
   font-family: var(--dd-font-mono);
   font-size: var(--viewer-log-font-size, 13.5px);
   line-height: 1.65;
-  background: var(--dd-log-bg-color, #0f172a);
   color: var(--dd-log-text-color, #e2e8f0);
 }
 

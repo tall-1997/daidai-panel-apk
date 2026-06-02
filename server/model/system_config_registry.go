@@ -52,6 +52,7 @@ var registeredSystemConfigSpecs = []systemConfigSpec{
 	newIntConfig("disk_warn", "90", "磁盘告警阈值（%）", "alerts", 1, 100),
 	newBoolConfig("auto_add_cron", "true", "自动添加定时任务", "subscription"),
 	newBoolConfig("auto_del_cron", "true", "自动删除失效任务", "subscription"),
+	newBoolConfig("subscription_force_overwrite", "true", "订阅拉取时覆盖本地修改并清理多余文件", "subscription"),
 	newValidatedStringConfig("default_cron_rule", "", "订阅脚本未声明 cron 时使用的默认规则", "subscription", normalizeDefaultCronRule),
 	newTrimmedStringConfig("repo_file_extensions", "py js sh ts", "订阅自动识别任务时扫描的脚本后缀", "subscription"),
 	newBoolConfig("notify_on_resource_warn", "false", "资源超限发送通知", "alerts"),

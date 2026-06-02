@@ -1,5 +1,5 @@
 <template>
-  <div class="deps-page dd-fixed-page dd-page-hide-heading">
+  <div class="deps-page dd-scroll-page dd-page-hide-heading">
     <div class="page-header">
       <div>
         <h2>📚 依赖管理</h2>
@@ -377,7 +377,7 @@
           取消当前任务
         </el-button>
       </div>
-      <pre ref="logContainerRef" class="log-content" v-html="logContentHtml"></pre>
+      <pre ref="logContainerRef" class="log-content dd-log-surface" v-html="logContentHtml"></pre>
     </el-dialog>
     <el-dialog v-model="showMirrorDialog" title="软件包镜像源设置" width="560px" :fullscreen="dialogFullscreen">
       <el-form label-width="110px" v-loading="mirrorLoading">
@@ -1033,7 +1033,10 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
-.deps-page { padding: 0; }
+.deps-page {
+  padding: 0;
+  overflow-x: hidden;
+}
 
 .page-header {
   margin-bottom: 18px;
@@ -1080,10 +1083,17 @@ onBeforeUnmount(() => {
     font-variant-numeric: tabular-nums;
     -webkit-font-smoothing: antialiased;
     letter-spacing: -0.01em;
+    white-space: nowrap;
     &--green { color: #10b981; }
     &--orange { color: #f59e0b; }
     &--red { color: #ef4444; }
     &--purple { color: #8b5cf6; }
+  }
+  &__label,
+  &__sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   &__sub { font-size: 12px; color: var(--el-text-color-placeholder); }
   &__trend {
@@ -1229,8 +1239,6 @@ onBeforeUnmount(() => {
 
 // ---------- Log dialog ----------
 .log-content {
-  background: #1e1e1e;
-  color: #d4d4d4;
   border-radius: 6px;
   padding: 16px;
   font-family: var(--dd-font-mono);
@@ -1283,6 +1291,63 @@ onBeforeUnmount(() => {
 // ---------- Responsive ----------
 @media screen and (max-width: 1200px) {
   .stat-cards { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media screen and (max-height: 720px) and (min-width: 769px) {
+  .android-runtime-card {
+    margin-bottom: 12px;
+
+    :deep(.el-card__header) {
+      padding: 12px 16px;
+    }
+
+    :deep(.el-card__body) {
+      padding: 12px 16px;
+    }
+  }
+
+  .android-runtime-tip {
+    margin-bottom: 8px;
+  }
+
+  .android-runtime-grid {
+    margin-top: 6px;
+  }
+
+  .runtime-item {
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+
+  .android-runtime-log pre {
+    max-height: 140px;
+  }
+
+  .stat-cards {
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .stat-card {
+    padding: 10px 14px;
+
+    &__value {
+      font-size: 22px;
+    }
+
+    &__sub {
+      display: none;
+    }
+  }
+
+  .deps-tabs,
+  .toolbar {
+    margin-bottom: 10px;
+  }
+
+  .pagination-bar {
+    margin-top: 12px;
+  }
 }
 
 @media (max-width: 768px) {

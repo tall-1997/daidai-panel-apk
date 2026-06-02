@@ -83,6 +83,10 @@ func Setup(engine *gin.Engine) {
 	androidRuntimeHandler.RegisterRoutes(v1)
 	androidRuntimeHandler.RegisterRoutes(legacy)
 
+	engine.GET("/robots.txt", func(c *gin.Context) {
+		c.Data(200, "text/plain; charset=utf-8", []byte("User-agent: *\nDisallow: /\n"))
+	})
+
 	engine.GET("/api/v1/version", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"version":     handler.Version,

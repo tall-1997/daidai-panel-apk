@@ -164,7 +164,7 @@ function handleClose() {
           <el-icon :size="48" color="var(--el-text-color-placeholder)"><Document /></el-icon>
           <span>选择文件查看内容</span>
         </div>
-        <pre v-else class="content-text" v-html="renderedFileHtml || '(空文件)'"></pre>
+        <pre v-else class="content-text dd-log-surface" v-html="renderedFileHtml || '(空文件)'"></pre>
       </div>
     </div>
   </el-dialog>
@@ -258,8 +258,6 @@ function handleClose() {
   margin: 0;
   padding: 12px;
   overflow-y: auto;
-  background: #1e1e1e;
-  color: #d4d4d4;
   font-family: var(--dd-font-mono);
   font-size: 13px;
   line-height: 1.6;

@@ -1228,7 +1228,6 @@ onBeforeUnmount(() => {
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-all;
-  background: var(--dd-log-bg-color, #0f172a);
   color: var(--dd-log-text-color, #e2e8f0);
   border-radius: 0;
 }

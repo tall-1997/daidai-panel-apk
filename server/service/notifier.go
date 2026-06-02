@@ -297,9 +297,14 @@ func sendTelegram(cfg map[string]string, title, content string) error {
 
 	messages := buildTelegramMessages(title, content)
 	for _, message := range messages {
-		body := map[string]string{
+		body := map[string]interface{}{
 			"chat_id": chatID,
 			"text":    message,
+		}
+		if v := strings.TrimSpace(cfg["message_thread_id"]); v != "" {
+			if threadID, err := strconv.Atoi(v); err == nil {
+				body["message_thread_id"] = threadID
+			}
 		}
 		if err := httpPostWithClient(client, apiURL, body, nil); err != nil {
 			return err

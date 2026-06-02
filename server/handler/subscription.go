@@ -387,11 +387,6 @@ func (h *SubscriptionHandler) Pull(c *gin.Context) {
 		return
 	}
 
-	if overrideStr := c.Query("force_overwrite"); overrideStr != "" {
-		override := overrideStr == "true" || overrideStr == "1"
-		sub.ForceOverwrite = &override
-	}
-
 	if service.IsSubscriptionPullRunning(uint(subID)) {
 		response.BadRequest(c, "该订阅正在拉取中")
 		return

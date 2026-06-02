@@ -63,6 +63,7 @@ func PullSubscriptionWithContext(ctx context.Context, sub *model.Subscription, o
 	}
 
 	emit(fmt.Sprintf("[开始拉取] %s (%s)", sub.Name, sub.Type))
+	applySubscriptionForceOverwriteSetting(sub)
 
 	var output string
 	var pullErr error
@@ -112,6 +113,14 @@ func PullSubscriptionWithContext(ctx context.Context, sub *model.Subscription, o
 	})
 
 	return output, pullErr
+}
+
+func applySubscriptionForceOverwriteSetting(sub *model.Subscription) {
+	if sub == nil || sub.Type != model.SubTypeGitRepo {
+		return
+	}
+	overwrite := isConfigEnabled("subscription_force_overwrite", true)
+	sub.ForceOverwrite = &overwrite
 }
 
 func runCmdWithCallback(ctx context.Context, cmd *exec.Cmd, emit PullCallback) (string, error) {
@@ -334,7 +343,17 @@ func pullGitRepoWithCallback(ctx context.Context, sub *model.Subscription, authC
 				return fullOutput.String(), err
 			}
 
-			emit("[已完成] 已覆盖更新所有仓库文件，本地新增的文件已保留")
+			emit("[清理多余文件] 正在移除原脚本目录中不属于远端仓库的旧文件")
+			cmd = exec.CommandContext(ctx, "git", "clean", "-fd")
+			cmd.Dir = destDir
+			cmd.Env = env
+			output, err = runCmdWithCallback(ctx, cmd, emit)
+			fullOutput.WriteString(output)
+			if err != nil {
+				return fullOutput.String(), err
+			}
+
+			emit("[已完成] 已覆盖更新所有仓库文件，并清理原目录中的多余旧文件")
 			return fullOutput.String(), nil
 		}
 	}

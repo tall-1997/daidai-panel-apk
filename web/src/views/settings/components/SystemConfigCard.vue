@@ -89,7 +89,7 @@ defineProps<{
           :style="{
             backgroundColor: form.log_background_color || undefined,
             backgroundImage: form.log_background_image
-              ? `radial-gradient(circle at top right, color-mix(in srgb, var(--dd-log-text-color) 10%, transparent), transparent 24%), linear-gradient(155deg, color-mix(in srgb, var(--dd-log-bg-color) 96%, white), color-mix(in srgb, var(--dd-log-bg-color) 88%, var(--dd-log-text-color) 8%)), url('${form.log_background_image}')`
+              ? `url('${form.log_background_image}'), radial-gradient(circle at top right, color-mix(in srgb, var(--dd-log-text-color) 10%, transparent), transparent 24%), linear-gradient(155deg, color-mix(in srgb, var(--dd-log-bg-color) 96%, white), color-mix(in srgb, var(--dd-log-bg-color) 88%, var(--dd-log-text-color) 8%))`
               : undefined
           }"
         >

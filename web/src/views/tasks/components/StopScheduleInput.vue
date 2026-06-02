@@ -58,7 +58,7 @@ watch(
   (value) => {
     const incoming = joinExpressions(splitExpressions(value))
     const current = joinExpressions(rules.value.map(rule => rule.expression))
-    if (incoming === current) {
+    if (incoming === current && rules.value.length > 0) {
       return
     }
     syncRulesFromModel(value)

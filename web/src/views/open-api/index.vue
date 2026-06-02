@@ -1,5 +1,5 @@
 <template>
-  <div class="open-api-page dd-fixed-page dd-page-hide-heading">
+  <div class="open-api-page dd-scroll-page dd-page-hide-heading">
     <div class="page-header">
       <div>
         <h2>🔑 Open API 管理</h2>
@@ -683,7 +683,10 @@ onMounted(loadApps)
 </script>
 
 <style scoped lang="scss">
-.open-api-page { padding: 0; }
+.open-api-page {
+  padding: 0;
+  overflow-x: hidden;
+}
 
 .page-header {
   display: flex;
@@ -736,10 +739,17 @@ onMounted(loadApps)
     font-variant-numeric: tabular-nums;
     -webkit-font-smoothing: antialiased;
     letter-spacing: -0.01em;
+    white-space: nowrap;
     &--green { color: #10b981; }
     &--orange { color: #f59e0b; }
     &--red { color: #ef4444; }
     &--purple { color: #8b5cf6; }
+  }
+  &__label,
+  &__sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   &__sub { font-size: 12px; color: var(--el-text-color-placeholder); }
   &__sparkline {
@@ -995,6 +1005,65 @@ onMounted(loadApps)
   .stat-cards { grid-template-columns: repeat(2, 1fr); }
   .trend-chart-card { width: 100%; }
   .info-cards { grid-template-columns: 1fr; }
+}
+
+@media screen and (max-height: 720px) and (min-width: 769px) {
+  .stat-section {
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .stat-cards {
+    gap: 10px;
+  }
+
+  .stat-card {
+    padding: 10px 14px;
+
+    &__value {
+      font-size: 22px;
+    }
+
+    &__sub {
+      display: none;
+    }
+  }
+
+  .trend-chart-card {
+    padding: 12px 14px;
+
+    &__header {
+      margin-bottom: 8px;
+    }
+  }
+
+  .trend-area-chart {
+    min-height: 54px;
+  }
+
+  .toolbar {
+    margin-bottom: 10px;
+  }
+
+  .pagination-bar {
+    margin-top: 12px;
+  }
+
+  .info-cards {
+    margin-top: 16px;
+  }
+
+  .info-card {
+    padding: 16px 18px;
+
+    &__header {
+      margin-bottom: 10px;
+    }
+
+    &__list li {
+      line-height: 1.7;
+    }
+  }
 }
 
 @media (max-width: 768px) {

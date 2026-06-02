@@ -508,6 +508,38 @@ html.dark {
     color: #fecaca !important;
   }
 
+  // 侧边栏 logo 区域：color-mix(..., white) 在暗色下偏亮，覆盖为深色适配
+  .sidebar-logo {
+    background: linear-gradient(180deg, var(--el-bg-color-overlay) 0%, var(--el-bg-color) 100%) !important;
+  }
+  .logo-inner {
+    background: var(--el-bg-color) !important;
+    border-color: var(--el-border-color-darker) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+  }
+  .logo-version {
+    background: color-mix(in srgb, var(--el-color-primary) 15%, var(--el-bg-color-overlay)) !important;
+    color: var(--el-color-primary-light-3) !important;
+  }
+
+  // 仪表盘面板容器：深色下增加边框对比度和阴影深度
+  .panel,
+  .log-panel {
+    border-color: var(--el-border-color-darker) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  }
+
+  // 快捷操作区域
+  .quick-action-card {
+    background: var(--el-bg-color-overlay) !important;
+    border-color: var(--el-border-color-darker) !important;
+  }
+
+  // 仪表盘任务表格 hover 行
+  .el-table__body tr:hover > td {
+    background-color: var(--el-fill-color) !important;
+  }
+
   .sponsor-wall {
     background:
       radial-gradient(circle at top right, rgba(249, 115, 22, 0.12), transparent 28%),
@@ -550,16 +582,16 @@ html.dark {
 .dd-log-surface {
   background-color: var(--dd-log-bg-color);
   background-image:
+    var(--dd-log-bg-image),
     radial-gradient(circle at top right,
       color-mix(in srgb, var(--dd-log-text-color) 10%, transparent),
       transparent 24%),
     linear-gradient(155deg,
       color-mix(in srgb, var(--dd-log-bg-color) 96%, white),
-      color-mix(in srgb, var(--dd-log-bg-color) 88%, var(--dd-log-text-color) 8%)),
-    var(--dd-log-bg-image);
+      color-mix(in srgb, var(--dd-log-bg-color) 88%, var(--dd-log-text-color) 8%));
   background-position: center, center, center;
   background-repeat: no-repeat, no-repeat, no-repeat;
-  background-size: auto, auto, cover;
+  background-size: cover, auto, auto;
   border: 1px solid var(--dd-log-border-color);
   border-radius: 16px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 28px rgba(15, 23, 42, 0.16);

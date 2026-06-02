@@ -64,6 +64,25 @@ func TestGitHasWorkingTreeChangesDetectsTrackedAndUntrackedFiles(t *testing.T) {
 	}
 }
 
+func TestApplySubscriptionForceOverwriteSettingUsesGlobalConfig(t *testing.T) {
+	_ = testutil.SetupTestEnv(t)
+
+	forceOverwrite := true
+	sub := &model.Subscription{
+		Type:           model.SubTypeGitRepo,
+		ForceOverwrite: &forceOverwrite,
+	}
+
+	if err := model.SetConfig("subscription_force_overwrite", "false"); err != nil {
+		t.Fatalf("set subscription_force_overwrite: %v", err)
+	}
+	applySubscriptionForceOverwriteSetting(sub)
+
+	if sub.ForceOverwrite == nil || *sub.ForceOverwrite {
+		t.Fatalf("expected global subscription_force_overwrite=false to override subscription field, got %#v", sub.ForceOverwrite)
+	}
+}
+
 func TestPullGitRepoWithCallbackPreserveModeSkipsFalseConflictWhenRepoIsClean(t *testing.T) {
 	root := testutil.SetupTestEnv(t)
 	remoteDir := filepath.Join(root, "remote.git")
