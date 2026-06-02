@@ -931,6 +931,7 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
                     onEnable: () => _enableTask(task['id']),
                     onDisable: () => _disableTask(task['id']),
                     onDelete: () => _deleteTask(task['id']),
+                    onEdit: () => _showEditTaskDialog(task),
                     onTap: () => _showTaskDetail(task),
                   ),
                 );
@@ -1109,6 +1110,159 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
       ),
     );
   }
+
+  void _showEditTaskDialog(Map<String, dynamic> task) {
+    final taskId = task['id'] ?? 0;
+    final nameController = TextEditingController(text: task['name'] ?? '');
+    final commandController = TextEditingController(text: task['command'] ?? '');
+    final cronController = TextEditingController(text: task['cron_expression'] ?? '');
+    final timeoutController = TextEditingController(text: '${task['timeout'] ?? 0}');
+    final groupController = TextEditingController(text: task['group'] ?? '');
+    String taskType = task['task_type'] ?? 'cron';
+
+    final cronPresets = [
+      {'label': '每分钟', 'value': '* * * * *'},
+      {'label': '每小时', 'value': '0 * * * *'},
+      {'label': '每天0点', 'value': '0 0 * * *'},
+      {'label': '每天8点', 'value': '0 8 * * *'},
+      {'label': '每天12点', 'value': '0 12 * * *'},
+      {'label': '每天20点', 'value': '0 20 * * *'},
+      {'label': '每周一', 'value': '0 0 * * 1'},
+      {'label': '每月1号', 'value': '0 0 1 * *'},
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('编辑任务'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: '任务名称',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: taskType,
+                  decoration: const InputDecoration(
+                    labelText: '任务类型',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'cron', child: Text('定时任务')),
+                    DropdownMenuItem(value: 'manual', child: Text('手动任务')),
+                  ],
+                  onChanged: (value) {
+                    setDialogState(() => taskType = value!);
+                  },
+                ),
+                const SizedBox(height: 16),
+                if (taskType == 'cron') ...[
+                  TextField(
+                    controller: cronController,
+                    decoration: const InputDecoration(
+                      labelText: 'Cron 表达式',
+                      hintText: '* * * * *',
+                      border: OutlineInputBorder(),
+                      helperText: '格式: 分 时 日 月 周',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: cronPresets.map((preset) => ActionChip(
+                      label: Text(preset['label']!, style: const TextStyle(fontSize: 12)),
+                      onPressed: () {
+                        setDialogState(() {
+                          cronController.text = preset['value']!;
+                        });
+                      },
+                    )).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                TextField(
+                  controller: commandController,
+                  decoration: const InputDecoration(
+                    labelText: '执行命令',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: timeoutController,
+                  decoration: const InputDecoration(
+                    labelText: '超时时间（秒）',
+                    border: OutlineInputBorder(),
+                    helperText: '0 表示不限制',
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: groupController,
+                  decoration: const InputDecoration(
+                    labelText: '分组（可选）',
+                    border: OutlineInputBorder(),
+                    helperText: '留空则自动分组',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                if (nameController.text.isEmpty || commandController.text.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('请填写必填项'), backgroundColor: Colors.red),
+                  );
+                  return;
+                }
+
+                try {
+                  final authService = context.read<AuthService>();
+                  final body = <String, dynamic>{
+                    'name': nameController.text,
+                    'task_type': taskType,
+                    'command': commandController.text,
+                    'timeout': int.tryParse(timeoutController.text) ?? 0,
+                    if (taskType == 'cron') 'cron_expression': cronController.text,
+                    if (groupController.text.trim().isNotEmpty) 'group': groupController.text.trim(),
+                  };
+                  await authService.apiService.updateTask(taskId, body);
+                  Navigator.pop(context);
+                  _loadTasks();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('任务已更新'), backgroundColor: Colors.green),
+                    );
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('更新失败: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              },
+              child: const Text('保存'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _GroupHeader extends StatelessWidget {
@@ -1246,6 +1400,7 @@ class _TaskCard extends StatelessWidget {
   final VoidCallback onEnable;
   final VoidCallback onDisable;
   final VoidCallback onDelete;
+  final VoidCallback onEdit;
 
   const _TaskCard({
     required this.task,
@@ -1258,6 +1413,7 @@ class _TaskCard extends StatelessWidget {
     required this.onEnable,
     required this.onDisable,
     required this.onDelete,
+    required this.onEdit,
   });
 
   @override
@@ -1400,6 +1556,12 @@ class _TaskCard extends StatelessWidget {
                   onPressed: onDisable,
                   tooltip: '禁用',
                 ),
+              _MiuixIconButton(
+                icon: Icons.edit,
+                color: MiuixColors.primary,
+                onPressed: onEdit,
+                tooltip: '编辑',
+              ),
               _MiuixIconButton(
                 icon: Icons.delete,
                 color: MiuixColors.error,
