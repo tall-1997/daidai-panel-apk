@@ -59,6 +59,6 @@ Agent 在任务执行过程中发现的条目应遵循以下格式：
 - Category: 运维部署
 - Instructions:
   - 原始仓库: https://github.com/tall-1997/daidai-panel
-  - 迁移后仓库: https://github.com/tall-1997/daidai-panel-apk
+  - 迁移后仓库: https://github.com/tall-1997/daidai-flutter
   - Flutter 代码在 flutter-app 分支上
   - main 分支保留原始 Kotlin 代码
