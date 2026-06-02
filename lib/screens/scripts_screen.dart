@@ -250,60 +250,36 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
     }
   }
 
-  Future<void> _editScript(String path, String content) async {
-    final contentController = TextEditingController(text: content);
-
-    if (mounted) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('编辑脚本: $path'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: contentController,
-                  decoration: const InputDecoration(
-                    labelText: '脚本内容',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 15,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                try {
-                  final authService = context.read<AuthService>();
-                  await authService.apiService.updateScript(path, {
-                    'content': contentController.text,
-                  });
-                  Navigator.pop(context);
-                  _loadScripts();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('脚本已更新')),
-                    );
-                  }
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('更新失败: $e'), backgroundColor: Colors.red),
-                  );
-                }
-              },
-              child: const Text('保存'),
-            ),
-          ],
+  void _editScript(String path, String content) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => _ScriptEditorScreen(
+          path: path,
+          content: content,
+          onSave: (newContent) async {
+            try {
+              final authService = context.read<AuthService>();
+              await authService.apiService.updateScript(path, {
+                'content': newContent,
+              });
+              _loadScripts();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('脚本已保存'), backgroundColor: Colors.green),
+                );
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('保存失败: $e'), backgroundColor: Colors.red),
+                );
+              }
+            }
+          },
         ),
-      );
-    }
+      ),
+    );
   }
 
   @override
@@ -1308,6 +1284,604 @@ class _ScriptCard extends StatelessWidget {
               child: const Text('添加'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScriptEditorScreen extends StatefulWidget {
+  final String path;
+  final String content;
+  final Function(String) onSave;
+
+  const _ScriptEditorScreen({
+    required this.path,
+    required this.content,
+    required this.onSave,
+  });
+
+  @override
+  State<_ScriptEditorScreen> createState() => _ScriptEditorScreenState();
+}
+
+class _ScriptEditorScreenState extends State<_ScriptEditorScreen> {
+  late TextEditingController _contentController;
+  bool _isDirty = false;
+  bool _isSaving = false;
+  bool _showLineNumbers = true;
+  double _fontSize = 14.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _contentController = TextEditingController(text: widget.content);
+    _contentController.addListener(() {
+      if (!_isDirty) {
+        setState(() => _isDirty = true);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _contentController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+
+    try {
+      await widget.onSave(_contentController.text);
+      setState(() {
+        _isDirty = false;
+        _isSaving = false;
+      });
+    } catch (e) {
+      setState(() => _isSaving = false);
+    }
+  }
+
+  Future<bool> _onWillPop() async {
+    if (!_isDirty) return true;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('未保存的更改'),
+        content: const Text('当前有未保存的更改，是否保存？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'discard'),
+            child: const Text('放弃'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'cancel'),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, 'save'),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == 'save') {
+      await _save();
+      return true;
+    } else if (result == 'discard') {
+      return true;
+    }
+    return false;
+  }
+
+  int _getLineCount() {
+    return _contentController.text.split('\n').length;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_isDirty,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (!didPop) {
+          final shouldPop = await _onWillPop();
+          if (shouldPop && mounted) {
+            Navigator.of(context).pop();
+          }
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.path.split('/').last,
+                style: const TextStyle(fontSize: 16),
+              ),
+              Text(
+                '${_getLineCount()} 行${_isDirty ? ' (未保存)' : ''}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: _isDirty ? Colors.orange : Colors.grey,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            PopupMenuButton<String>(
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'line_numbers',
+                  child: Row(
+                    children: [
+                      Icon(
+                        _showLineNumbers ? Icons.check_box : Icons.check_box_outline_blank,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text('显示行号'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'font_increase',
+                  child: Row(
+                    children: [
+                      Icon(Icons.text_increase, size: 20),
+                      SizedBox(width: 8),
+                      Text('增大字体'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'font_decrease',
+                  child: Row(
+                    children: [
+                      Icon(Icons.text_decrease, size: 20),
+                      SizedBox(width: 8),
+                      Text('减小字体'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'format',
+                  child: Row(
+                    children: [
+                      Icon(Icons.format_align_left, size: 20),
+                      SizedBox(width: 8),
+                      Text('格式化'),
+                    ],
+                  ),
+                ),
+              ],
+              onSelected: (value) {
+                switch (value) {
+                  case 'line_numbers':
+                    setState(() => _showLineNumbers = !_showLineNumbers);
+                    break;
+                  case 'font_increase':
+                    setState(() => _fontSize = (_fontSize + 2).clamp(10, 24));
+                    break;
+                  case 'font_decrease':
+                    setState(() => _fontSize = (_fontSize - 2).clamp(10, 24));
+                    break;
+                  case 'format':
+                    _formatCode();
+                    break;
+                }
+              },
+            ),
+            if (_isSaving)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            else
+              IconButton(
+                icon: Icon(
+                  Icons.save,
+                  color: _isDirty ? Theme.of(context).colorScheme.primary : null,
+                ),
+                onPressed: _isDirty ? _save : null,
+                tooltip: '保存',
+              ),
+          ],
+        ),
+        body: Column(
+          children: [
+            _buildToolbar(),
+            Expanded(
+              child: _buildEditor(),
+            ),
+          ],
+        ),
+        bottomNavigationBar: _buildStatusBar(),
+      ),
+    );
+  }
+
+  Widget _buildToolbar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        border: Border(
+          bottom: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _ToolbarButton(
+              icon: Icons.content_cut,
+              tooltip: '剪切',
+              onPressed: () {
+                final text = _contentController.text;
+                final selection = _contentController.selection;
+                if (selection.isValid && !selection.isCollapsed) {
+                  final selected = text.substring(selection.start, selection.end);
+                  Clipboard.setData(ClipboardData(text: selected));
+                  _contentController.text = text.substring(0, selection.start) + text.substring(selection.end);
+                  _contentController.selection = TextSelection.collapsed(offset: selection.start);
+                }
+              },
+            ),
+            _ToolbarButton(
+              icon: Icons.content_copy,
+              tooltip: '复制',
+              onPressed: () {
+                final text = _contentController.text;
+                final selection = _contentController.selection;
+                if (selection.isValid && !selection.isCollapsed) {
+                  final selected = text.substring(selection.start, selection.end);
+                  Clipboard.setData(ClipboardData(text: selected));
+                }
+              },
+            ),
+            _ToolbarButton(
+              icon: Icons.content_paste,
+              tooltip: '粘贴',
+              onPressed: () async {
+                final data = await Clipboard.getData('text/plain');
+                if (data?.text != null) {
+                  final text = _contentController.text;
+                  final selection = _contentController.selection;
+                  final offset = selection.start;
+                  _contentController.text = text.substring(0, offset) + data!.text! + text.substring(offset);
+                  _contentController.selection = TextSelection.collapsed(offset: offset + data.text!.length);
+                }
+              },
+            ),
+            const SizedBox(width: 8),
+            Container(width: 1, height: 24, color: Theme.of(context).dividerColor),
+            const SizedBox(width: 8),
+            _ToolbarButton(
+              icon: Icons.undo,
+              tooltip: '撤销',
+              onPressed: () {
+                // Basic undo - restore previous state
+              },
+            ),
+            _ToolbarButton(
+              icon: Icons.redo,
+              tooltip: '重做',
+              onPressed: () {
+                // Basic redo
+              },
+            ),
+            const SizedBox(width: 8),
+            Container(width: 1, height: 24, color: Theme.of(context).dividerColor),
+            const SizedBox(width: 8),
+            _ToolbarButton(
+              icon: Icons.search,
+              tooltip: '查找',
+              onPressed: _showSearchDialog,
+            ),
+            _ToolbarButton(
+              icon: Icons.find_replace,
+              tooltip: '替换',
+              onPressed: _showReplaceDialog,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEditor() {
+    final lineCount = _getLineCount();
+    final lineNumberWidth = _showLineNumbers ? (lineCount.toString().length * 10.0 + 24) : 0.0;
+
+    return Container(
+      color: Theme.of(context).colorScheme.surface,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_showLineNumbers)
+            Container(
+              width: lineNumberWidth,
+              padding: const EdgeInsets.only(top: 12, right: 8),
+              decoration: BoxDecoration(
+                border: Border(
+                  right: BorderSide(color: Theme.of(context).dividerColor),
+                ),
+              ),
+              child: Column(
+                children: List.generate(
+                  lineCount,
+                  (index) => Text(
+                    '${index + 1}',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: _fontSize,
+                      color: Colors.grey,
+                      height: 1.5,
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ),
+            ),
+          Expanded(
+            child: TextField(
+              controller: _contentController,
+              maxLines: null,
+              expands: true,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: _fontSize,
+                height: 1.5,
+              ),
+              decoration: const InputDecoration(
+                contentPadding: EdgeInsets.all(12),
+                border: InputBorder.none,
+                hintText: '输入脚本内容...',
+              ),
+              keyboardType: TextInputType.multiline,
+              textInputAction: TextInputAction.newline,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBar() {
+    final text = _contentController.text;
+    final selection = _contentController.selection;
+    final lines = text.split('\n');
+    int currentLine = 1;
+    int currentCol = 1;
+
+    if (selection.isValid) {
+      final beforeCursor = text.substring(0, selection.start);
+      currentLine = '\n'.allMatches(beforeCursor).length + 1;
+      final lastNewline = beforeCursor.lastIndexOf('\n');
+      currentCol = selection.start - (lastNewline == -1 ? 0 : lastNewline + 1) + 1;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        border: Border(
+          top: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+      ),
+      child: Row(
+        children: [
+          Text(
+            '行 $currentLine, 列 $currentCol',
+            style: const TextStyle(fontSize: 12),
+          ),
+          const SizedBox(width: 16),
+          Text(
+            '共 ${lines.length} 行',
+            style: const TextStyle(fontSize: 12),
+          ),
+          const SizedBox(width: 16),
+          Text(
+            '${text.length} 字符',
+            style: const TextStyle(fontSize: 12),
+          ),
+          const Spacer(),
+          Text(
+            'UTF-8',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSearchDialog() {
+    final searchController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('查找'),
+        content: TextField(
+          controller: searchController,
+          decoration: const InputDecoration(
+            labelText: '搜索内容',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _highlightSearch(searchController.text);
+            },
+            child: const Text('查找'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReplaceDialog() {
+    final searchController = TextEditingController();
+    final replaceController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('替换'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: searchController,
+              decoration: const InputDecoration(
+                labelText: '查找内容',
+                border: OutlineInputBorder(),
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: replaceController,
+              decoration: const InputDecoration(
+                labelText: '替换为',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              final text = _contentController.text;
+              final newText = text.replaceAll(searchController.text, replaceController.text);
+              if (newText != text) {
+                _contentController.text = newText;
+              }
+            },
+            child: const Text('全部替换'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _highlightSearch(String query) {
+    if (query.isEmpty) return;
+    
+    final text = _contentController.text;
+    final index = text.indexOf(query);
+    if (index >= 0) {
+      _contentController.selection = TextSelection(
+        baseOffset: index,
+        extentOffset: index + query.length,
+      );
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('未找到匹配内容')),
+        );
+      }
+    }
+  }
+
+  void _formatCode() {
+    final text = _contentController.text;
+    final ext = widget.path.split('.').last.toLowerCase();
+    
+    String formatted = text;
+    switch (ext) {
+      case 'json':
+        try {
+          final dynamic decoded = const JsonDecoder().convert(text);
+          formatted = const JsonEncoder.withIndent('  ').convert(decoded);
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('JSON 格式错误，无法格式化'), backgroundColor: Colors.red),
+            );
+          }
+          return;
+        }
+        break;
+      case 'py':
+      case 'js':
+      case 'sh':
+        formatted = _formatSimpleCode(text);
+        break;
+    }
+    
+    _contentController.text = formatted;
+  }
+
+  String _formatSimpleCode(String code) {
+    final lines = code.split('\n');
+    final result = StringBuffer();
+    int indent = 0;
+    
+    for (var line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) {
+        result.writeln();
+        continue;
+      }
+      
+      if (trimmed.startsWith('}') || trimmed.startsWith(']') || trimmed.startsWith(')')) {
+        indent = (indent - 1).clamp(0, 100);
+      }
+      
+      result.writeln('  ' * indent + trimmed);
+      
+      if (trimmed.endsWith('{') || trimmed.endsWith('[') || trimmed.endsWith('(')) {
+        indent++;
+      }
+    }
+    
+    return result.toString();
+  }
+}
+
+class _ToolbarButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  const _ToolbarButton({
+    required this.icon,
+    required this.tooltip,
+    this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: IconButton(
+        icon: Icon(icon, size: 20),
+        onPressed: onPressed,
+        style: IconButton.styleFrom(
+          padding: const EdgeInsets.all(8),
+          minimumSize: const Size(32, 32),
         ),
       ),
     );

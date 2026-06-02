@@ -117,14 +117,28 @@ class ApiService {
     return response;
   }
 
-  Future<http.Response> delete(String path) async {
+  Future<http.Response> delete(String path, {Map<String, dynamic>? body}) async {
     final uri = Uri.parse('$baseUrl/api/v1$path');
-    final response = await http.delete(uri, headers: _headers);
+    final request = http.Request('DELETE', uri);
+    request.headers.addAll(_headers);
+    if (body != null) {
+      request.body = jsonEncode(body);
+      request.headers['Content-Type'] = 'application/json';
+    }
+    final streamedResponse = await http.Client().send(request);
+    final response = await http.Response.fromStream(streamedResponse);
     
     if (response.statusCode == 401 && _refreshToken != null) {
       final refreshed = await _tryRefreshToken();
       if (refreshed) {
-        return http.delete(uri, headers: _headers);
+        final retryRequest = http.Request('DELETE', uri);
+        retryRequest.headers.addAll(_headers);
+        if (body != null) {
+          retryRequest.body = jsonEncode(body);
+          retryRequest.headers['Content-Type'] = 'application/json';
+        }
+        final retryStreamed = await http.Client().send(retryRequest);
+        return await http.Response.fromStream(retryStreamed);
       }
     }
     
@@ -630,6 +644,135 @@ class ApiService {
   // Login logs API
   Future<Map<String, dynamic>> getLoginLogs({int page = 1, int pageSize = 50}) async {
     final response = await get('/auth/login-logs?page=$page&page_size=$pageSize');
+    return jsonDecode(response.body);
+  }
+
+  // ==================== Security API ====================
+
+  // Sessions
+  Future<Map<String, dynamic>> getSessions() async {
+    final response = await get('/security/sessions');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> revokeSession(int id) async {
+    final response = await delete('/security/sessions/$id');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> revokeAllSessions(int userId) async {
+    final response = await delete('/security/sessions/user/$userId');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> revokeOtherSessions() async {
+    final response = await delete('/security/sessions/others');
+    return jsonDecode(response.body);
+  }
+
+  // IP Whitelist
+  Future<Map<String, dynamic>> getIPWhitelist() async {
+    final response = await get('/security/ip-whitelist');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> addIPWhitelist(String ip, {String? remarks}) async {
+    final response = await post('/security/ip-whitelist', body: {'ip': ip, if (remarks != null) 'remarks': remarks});
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> removeIPWhitelist(int id) async {
+    final response = await delete('/security/ip-whitelist/$id');
+    return jsonDecode(response.body);
+  }
+
+  // 2FA
+  Future<Map<String, dynamic>> setup2FA() async {
+    final response = await post('/security/2fa/setup');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> verify2FA(String code) async {
+    final response = await post('/security/2fa/verify', body: {'code': code});
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> disable2FA(String code) async {
+    final response = await delete('/security/2fa', body: {'code': code});
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> get2FAStatus() async {
+    final response = await get('/security/2fa/status');
+    return jsonDecode(response.body);
+  }
+
+  // Login stats
+  Future<Map<String, dynamic>> getLoginStats({int days = 7}) async {
+    final response = await get('/security/login-stats?days=$days');
+    return jsonDecode(response.body);
+  }
+
+  // Audit logs
+  Future<Map<String, dynamic>> getAuditLogs({int page = 1, int pageSize = 20}) async {
+    final response = await get('/security/audit-logs?page=$page&page_size=$pageSize');
+    return jsonDecode(response.body);
+  }
+
+  // Clear login logs
+  Future<Map<String, dynamic>> clearLoginLogs() async {
+    final response = await delete('/security/login-logs');
+    return jsonDecode(response.body);
+  }
+
+  // ==================== Notification Types API ====================
+
+  Future<Map<String, dynamic>> getNotificationTypes() async {
+    final response = await get('/notifications/types');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> enableNotification(int id) async {
+    final response = await put('/notifications/$id/enable');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> disableNotification(int id) async {
+    final response = await put('/notifications/$id/disable');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> sendNotification(String title, String content, {List<int>? channelIds}) async {
+    final body = <String, dynamic>{
+      'title': title,
+      'content': content,
+      if (channelIds != null && channelIds.isNotEmpty) 'channel_ids': channelIds,
+    };
+    final response = await post('/notifications/send', body: body);
+    return jsonDecode(response.body);
+  }
+
+  // ==================== Config API ====================
+
+  Future<Map<String, dynamic>> getConfigs() async {
+    final response = await get('/configs');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> updateConfigs(Map<String, dynamic> configs) async {
+    final response = await put('/configs/batch', body: {'configs': configs});
+    return jsonDecode(response.body);
+  }
+
+  // ==================== Backup API ====================
+
+  Future<Map<String, dynamic>> getBackupConfig() async {
+    final response = await get('/configs');
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> updateBackupConfig(Map<String, dynamic> config) async {
+    final response = await put('/configs/batch', body: {'configs': config});
     return jsonDecode(response.body);
   }
 }

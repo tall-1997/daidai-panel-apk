@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 import '../services/auth_service.dart';
 import '../services/root/magisk_helper.dart';
 import '../theme/miuix_theme.dart';
@@ -19,11 +20,47 @@ class _SystemScreenState extends State<SystemScreen> with RefreshableScreen {
   Map<String, dynamic> _systemInfo = {};
   Map<String, dynamic> _dashboardData = {};
   String _error = '';
+  
+  // Trend data
+  final List<double> _cpuHistory = [];
+  final List<double> _memoryHistory = [];
+  final List<double> _diskHistory = [];
+  Timer? _trendTimer;
+  static const int _maxHistoryLength = 30;
 
   @override
   void initState() {
     super.initState();
     _loadSystemInfo();
+    _startTrendMonitoring();
+  }
+
+  @override
+  void dispose() {
+    _trendTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startTrendMonitoring() {
+    _trendTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (_systemInfo.isNotEmpty) {
+        setState(() {
+          _cpuHistory.add(_systemInfo['cpu_usage']?.toDouble() ?? 0);
+          _memoryHistory.add(_systemInfo['memory_usage']?.toDouble() ?? 0);
+          _diskHistory.add(_systemInfo['disk_usage']?.toDouble() ?? 0);
+          
+          if (_cpuHistory.length > _maxHistoryLength) {
+            _cpuHistory.removeAt(0);
+          }
+          if (_memoryHistory.length > _maxHistoryLength) {
+            _memoryHistory.removeAt(0);
+          }
+          if (_diskHistory.length > _maxHistoryLength) {
+            _diskHistory.removeAt(0);
+          }
+        });
+      }
+    });
   }
 
   @override
@@ -111,6 +148,10 @@ class _SystemScreenState extends State<SystemScreen> with RefreshableScreen {
                       if (_systemInfo.containsKey('root_info')) ...[
                         const SizedBox(height: 16),
                         _buildRootSystemInfoCard(),
+                      ],
+                      if (_cpuHistory.length >= 3) ...[
+                        const SizedBox(height: 16),
+                        _buildTrendChartCard(),
                       ],
                     ],
                   ),
@@ -407,6 +448,105 @@ class _SystemScreenState extends State<SystemScreen> with RefreshableScreen {
     );
   }
 
+  Widget _buildTrendChartCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.trending_up, color: Colors.blue),
+                const SizedBox(width: 8),
+                Text(
+                  '资源使用趋势',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
+            ),
+            const Divider(),
+            const SizedBox(height: 8),
+            _buildTrendChart('CPU', _cpuHistory, Colors.blue),
+            const SizedBox(height: 16),
+            _buildTrendChart('内存', _memoryHistory, Colors.green),
+            const SizedBox(height: 16),
+            _buildTrendChart('磁盘', _diskHistory, Colors.orange),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                '最近 ${_cpuHistory.length} 次采样 (每5秒)',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTrendChart(String label, List<double> data, Color color) {
+    if (data.isEmpty) return const SizedBox.shrink();
+    
+    final currentValue = data.last;
+    final maxValue = data.reduce((a, b) => a > b ? a : b);
+    final minValue = data.reduce((a, b) => a < b ? a : b);
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            Text(
+              '${currentValue.toStringAsFixed(1)}%',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: color,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '最小: ${minValue.toStringAsFixed(1)}%',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            Text(
+              '最大: ${maxValue.toStringAsFixed(1)}%',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 60,
+          child: CustomPaint(
+            size: Size.infinite,
+            painter: _TrendChartPainter(
+              data: data,
+              color: color,
+              maxValue: 100,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildInfoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -435,4 +575,77 @@ class _SystemScreenState extends State<SystemScreen> with RefreshableScreen {
     if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
+}
+
+class _TrendChartPainter extends CustomPainter {
+  final List<double> data;
+  final Color color;
+  final double maxValue;
+
+  _TrendChartPainter({
+    required this.data,
+    required this.color,
+    required this.maxValue,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (data.length < 2) return;
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+
+    final fillPaint = Paint()
+      ..color = color.withOpacity(0.1)
+      ..style = PaintingStyle.fill;
+
+    final path = Path();
+    final fillPath = Path();
+    
+    final stepX = size.width / (data.length - 1);
+    final scaleY = size.height / maxValue;
+
+    // Start fill path
+    fillPath.moveTo(0, size.height);
+
+    for (int i = 0; i < data.length; i++) {
+      final x = i * stepX;
+      final y = size.height - (data[i] * scaleY);
+      
+      if (i == 0) {
+        path.moveTo(x, y);
+        fillPath.lineTo(x, y);
+      } else {
+        path.lineTo(x, y);
+        fillPath.lineTo(x, y);
+      }
+    }
+
+    // Close fill path
+    fillPath.lineTo(size.width, size.height);
+    fillPath.close();
+
+    // Draw fill
+    canvas.drawPath(fillPath, fillPaint);
+
+    // Draw line
+    canvas.drawPath(path, paint);
+
+    // Draw dots
+    final dotPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    for (int i = 0; i < data.length; i++) {
+      final x = i * stepX;
+      final y = size.height - (data[i] * scaleY);
+      canvas.drawCircle(Offset(x, y), 3, dotPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

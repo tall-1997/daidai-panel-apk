@@ -1118,7 +1118,13 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
     final cronController = TextEditingController(text: task['cron_expression'] ?? '');
     final timeoutController = TextEditingController(text: '${task['timeout'] ?? 0}');
     final groupController = TextEditingController(text: task['group'] ?? '');
+    final retryCountController = TextEditingController(text: '${task['retry_count'] ?? 0}');
+    final retryDelayController = TextEditingController(text: '${task['retry_delay'] ?? 5}');
+    final dependsOnController = TextEditingController(text: task['depends_on'] ?? '');
+    final hookBeforeController = TextEditingController(text: task['hook_before'] ?? '');
+    final hookAfterController = TextEditingController(text: task['hook_after'] ?? '');
     String taskType = task['task_type'] ?? 'cron';
+    bool enableRetry = (task['retry_count'] ?? 0) > 0;
 
     final cronPresets = [
       {'label': '每分钟', 'value': '* * * * *'},
@@ -1139,6 +1145,7 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 TextField(
                   controller: nameController,
@@ -1215,6 +1222,76 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
                     helperText: '留空则自动分组',
                   ),
                 ),
+                const SizedBox(height: 24),
+                const Text('重试设置', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  title: const Text('启用重试'),
+                  subtitle: const Text('任务失败时自动重试'),
+                  value: enableRetry,
+                  onChanged: (value) {
+                    setDialogState(() => enableRetry = value);
+                  },
+                  contentPadding: EdgeInsets.zero,
+                ),
+                if (enableRetry) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: retryCountController,
+                          decoration: const InputDecoration(
+                            labelText: '重试次数',
+                            border: OutlineInputBorder(),
+                            helperText: '失败后重试次数',
+                          ),
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextField(
+                          controller: retryDelayController,
+                          decoration: const InputDecoration(
+                            labelText: '重试间隔（秒）',
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 24),
+                const Text('依赖与钩子', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: dependsOnController,
+                  decoration: const InputDecoration(
+                    labelText: '依赖任务ID（可选）',
+                    border: OutlineInputBorder(),
+                    helperText: '多个任务ID用逗号分隔，依赖任务完成后才执行',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: hookBeforeController,
+                  decoration: const InputDecoration(
+                    labelText: '执行前钩子（可选）',
+                    border: OutlineInputBorder(),
+                    helperText: '任务执行前运行的命令',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: hookAfterController,
+                  decoration: const InputDecoration(
+                    labelText: '执行后钩子（可选）',
+                    border: OutlineInputBorder(),
+                    helperText: '任务执行后运行的命令',
+                  ),
+                ),
               ],
             ),
           ),
@@ -1241,6 +1318,11 @@ class _TasksScreenState extends State<TasksScreen> with RefreshableScreen {
                     'timeout': int.tryParse(timeoutController.text) ?? 0,
                     if (taskType == 'cron') 'cron_expression': cronController.text,
                     if (groupController.text.trim().isNotEmpty) 'group': groupController.text.trim(),
+                    'retry_count': enableRetry ? (int.tryParse(retryCountController.text) ?? 0) : 0,
+                    'retry_delay': enableRetry ? (int.tryParse(retryDelayController.text) ?? 5) : 5,
+                    if (dependsOnController.text.trim().isNotEmpty) 'depends_on': dependsOnController.text.trim(),
+                    if (hookBeforeController.text.trim().isNotEmpty) 'hook_before': hookBeforeController.text.trim(),
+                    if (hookAfterController.text.trim().isNotEmpty) 'hook_after': hookAfterController.text.trim(),
                   };
                   await authService.apiService.updateTask(taskId, body);
                   Navigator.pop(context);
