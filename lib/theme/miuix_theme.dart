@@ -190,6 +190,17 @@ ThemeData buildMiuixLightTheme() {
         textStyle: MiuixTextStyles.button,
       ),
     ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: MiuixColors.primary,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(MiuixSpacing.buttonCornerRadius),
+        ),
+        side: const BorderSide(color: MiuixColors.outline),
+        textStyle: MiuixTextStyles.button,
+      ),
+    ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: MiuixColors.secondaryContainer,
@@ -239,10 +250,11 @@ ThemeData buildMiuixLightTheme() {
     chipTheme: ChipThemeData(
       backgroundColor: MiuixColors.secondaryContainer,
       selectedColor: MiuixColors.tertiaryContainer,
-      labelStyle: MiuixTextStyles.body2,
+      labelStyle: MiuixTextStyles.body2.copyWith(color: MiuixColors.onSurface),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(MiuixSpacing.cardCornerRadius),
       ),
+      side: BorderSide(color: MiuixColors.outline),
     ),
     tabBarTheme: TabBarThemeData(
       labelColor: MiuixColors.primary,
@@ -333,6 +345,17 @@ ThemeData buildMiuixDarkTheme() {
         textStyle: MiuixTextStyles.button,
       ),
     ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: MiuixColors.darkPrimary,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(MiuixSpacing.buttonCornerRadius),
+        ),
+        side: const BorderSide(color: MiuixColors.darkOutline),
+        textStyle: MiuixTextStyles.button,
+      ),
+    ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: MiuixColors.darkSecondaryContainer,
@@ -382,10 +405,11 @@ ThemeData buildMiuixDarkTheme() {
     chipTheme: ChipThemeData(
       backgroundColor: MiuixColors.darkSecondaryContainer,
       selectedColor: MiuixColors.darkTertiaryContainer,
-      labelStyle: MiuixTextStyles.body2,
+      labelStyle: MiuixTextStyles.body2.copyWith(color: MiuixColors.darkOnSurface),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(MiuixSpacing.cardCornerRadius),
       ),
+      side: BorderSide(color: MiuixColors.darkOutline),
     ),
     tabBarTheme: TabBarThemeData(
       labelColor: MiuixColors.darkPrimary,

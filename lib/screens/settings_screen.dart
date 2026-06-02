@@ -24,6 +24,7 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
   MagiskModuleInfo? _moduleInfo;
   String _appVersion = '';
   bool _notificationEnabled = false;
+  String _notificationChannel = 'app'; // 'app', 'server', 'both'
 
   @override
   void initState() {
@@ -42,6 +43,7 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _notificationEnabled = prefs.getBool('notification_enabled') ?? false;
+      _notificationChannel = prefs.getString('notification_channel') ?? 'app';
     });
   }
 
@@ -57,6 +59,32 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
         title: '通知已开启',
         body: '您将收到任务执行状态的通知',
       );
+    }
+  }
+
+  Future<void> _setNotificationChannel(String channel) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('notification_channel', channel);
+    setState(() {
+      _notificationChannel = channel;
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('通知渠道已切换为: ${_getChannelName(channel)}'), backgroundColor: Colors.green),
+      );
+    }
+  }
+
+  String _getChannelName(String channel) {
+    switch (channel) {
+      case 'app':
+        return 'App 推送';
+      case 'server':
+        return '服务器通知';
+      case 'both':
+        return '全部渠道';
+      default:
+        return 'App 推送';
     }
   }
 
@@ -671,6 +699,43 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
                   value: _notificationEnabled,
                   onChanged: _toggleNotification,
                 ),
+                if (_notificationEnabled) ...[
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.notifications),
+                    title: const Text('通知渠道'),
+                    subtitle: Text(_getChannelName(_notificationChannel)),
+                    trailing: DropdownButton<String>(
+                      value: _notificationChannel,
+                      onChanged: (value) {
+                        if (value != null) {
+                          _setNotificationChannel(value);
+                        }
+                      },
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'app',
+                          child: Text('App 推送'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'server',
+                          child: Text('服务器通知'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'both',
+                          child: Text('全部渠道'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'App 推送: 通过 App 本地推送通知\n服务器通知: 通过服务器发送的通知\n全部渠道: 同时使用两种通知方式',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
