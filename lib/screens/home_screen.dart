@@ -115,7 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     CircleAvatar(
                       radius: 14,
-                      backgroundColor: MiuixColors.primary,
+                      backgroundColor: isDark ? MiuixColors.darkPrimary : MiuixColors.primary,
                       child: Text(
                         (authService.username ?? 'U')[0].toUpperCase(),
                         style: const TextStyle(color: Colors.white, fontSize: 12),
@@ -185,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           CircleAvatar(
                             radius: 22,
-                            backgroundColor: MiuixColors.primary,
+                            backgroundColor: isDark ? MiuixColors.darkPrimary : MiuixColors.primary,
                             child: Text(
                               (authService.username ?? 'U')[0].toUpperCase(),
                               style: const TextStyle(
