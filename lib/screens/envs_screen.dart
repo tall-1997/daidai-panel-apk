@@ -784,6 +784,7 @@ class _EnvCard extends StatelessWidget {
     final value = env['value'] ?? '';
     final enabled = env['enabled'] ?? true;
     final remarks = env['remarks'] ?? '';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -833,12 +834,14 @@ class _EnvCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.grey[100],
+                  color: isDark ? MiuixColors.darkSurfaceContainerHighest : Colors.grey[100],
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   value,
-                  style: MiuixTextStyles.monospace,
+                  style: MiuixTextStyles.monospace.copyWith(
+                    color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
+                  ),
                 ),
               ),
               if (remarks.isNotEmpty) ...[
@@ -846,7 +849,7 @@ class _EnvCard extends StatelessWidget {
                 Text(
                   remarks,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey,
+                    color: isDark ? MiuixColors.darkOnSurfaceVariant : Colors.grey,
                   ),
                 ),
               ],

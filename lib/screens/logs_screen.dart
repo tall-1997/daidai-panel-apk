@@ -671,6 +671,7 @@ class _LogDetailSheet extends StatelessWidget {
     final taskId = log['task_id'] ?? log['taskId'] ?? '';
     final logId = log['id'] ?? '';
     final errorMsg = log['error'] ?? log['error_message'] ?? '';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     Color statusColor;
     String statusText;
@@ -713,7 +714,7 @@ class _LogDetailSheet extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey[300],
+                color: isDark ? MiuixColors.darkOutline : Colors.grey[300],
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -763,12 +764,14 @@ class _LogDetailSheet extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.grey[100],
+              color: isDark ? MiuixColors.darkSurfaceContainerHighest : Colors.grey[100],
               borderRadius: BorderRadius.circular(8),
             ),
             child: SelectableText(
               _cleanContent(content).isEmpty ? '无日志内容' : _cleanContent(content),
-              style: MiuixTextStyles.monospace,
+              style: MiuixTextStyles.monospace.copyWith(
+                color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
+              ),
             ),
           ),
         ],
