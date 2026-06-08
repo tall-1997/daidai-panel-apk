@@ -24,12 +24,12 @@
 
 ## 下载
 
-### 最新版本 v0.0.35
+### 最新版本 v0.0.36
 
 | 平台 | 下载链接 |
 |------|---------|
-| Android APK | [daidai-flutter-v0.0.35-android.apk](https://github.com/tall-1997/daidai-flutter/releases/download/v0.0.35/daidai-flutter-v0.0.35-android.apk) |
-| iOS IPA | [daidai-flutter-v0.0.35-ios.ipa](https://github.com/tall-1997/daidai-flutter/releases/download/v0.0.35/daidai-flutter-v0.0.35-ios.ipa) |
+| Android APK | [daidai-flutter-v0.0.36-android.apk](https://github.com/tall-1997/daidai-flutter/releases/download/v0.0.36/daidai-flutter-v0.0.36-android.apk) |
+| iOS IPA | [daidai-flutter-v0.0.36-ios.ipa](https://github.com/tall-1997/daidai-flutter/releases/download/v0.0.36/daidai-flutter-v0.0.36-ios.ipa) |
 
 > 所有版本: [Releases](https://github.com/tall-1997/daidai-flutter/releases)
 
@@ -137,6 +137,7 @@ flutter build ipa --release --no-codesign
 
 | 版本 | 主要更新 |
 |------|---------|
+| v0.0.36 | 修复夜间模式白色背景问题、环境变量和日志页面深色模式适配 |
 | v0.0.35 | 依赖管理按钮优化、版本更新 |
 | v0.0.38+31 | 面板标题图标自定义、设置页面增强 |
 | v0.0.36+29 | 通知渠道扩展18种类型、脚本全屏编辑器、任务重试/依赖/钩子、系统监控趋势图表 |
