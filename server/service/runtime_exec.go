@@ -80,11 +80,15 @@ runpy.run_path(script_path, run_name="__main__")
 const shellEnvBootstrap = `__dd_env_file=$1
 __dd_script=$2
 shift 2
+export DAIDAI_RUNTIME_SHELL_ENV_FILE="$__dd_env_file"
 if [ -f "$__dd_env_file" ]; then
   . "$__dd_env_file"
 fi
 . "$__dd_script" "$@"
 `
+
+const shellEnvExportValueMaxBytes = 128 * 1024
+const shellEnvExportBudgetBytes = 512 * 1024
 
 const goEnvBootstrapSource = `package main
 
@@ -902,11 +906,26 @@ func writeManagedRuntimeShellEnvFile(envVars map[string]string) (string, string,
 		if !isValidShellEnvName(key) || isDangerousShellEnvName(key) || strings.ContainsRune(value, 0) {
 			continue
 		}
-		b.WriteString("export ")
 		b.WriteString(key)
 		b.WriteByte('=')
 		b.WriteString(shellSingleQuote(value))
 		b.WriteByte('\n')
+	}
+
+	exportedBytes := 0
+	for _, key := range keys {
+		value := envVars[key]
+		if !isValidShellEnvName(key) || isDangerousShellEnvName(key) || strings.ContainsRune(value, 0) {
+			continue
+		}
+		entryBytes := len(key) + 1 + len(value) + 1
+		if entryBytes > shellEnvExportValueMaxBytes || exportedBytes+entryBytes > shellEnvExportBudgetBytes {
+			continue
+		}
+		b.WriteString("export ")
+		b.WriteString(key)
+		b.WriteByte('\n')
+		exportedBytes += entryBytes
 	}
 
 	envFile := filepath.Join(tempDir, "env.sh")
