@@ -662,23 +662,19 @@ class _ScriptsScreenState extends State<ScriptsScreen> with RefreshableScreen {
                 try {
                   final authService = context.read<AuthService>();
                   final scriptName = _currentPath + nameController.text;
-                  final result = await authService.apiService.createScript({
-                    'name': scriptName,
+                  
+                  // 使用 PUT /scripts/content 保存脚本
+                  final result = await authService.apiService.updateScript(scriptName, {
                     'content': contentController.text,
-                    'path': scriptName,
                   });
                   
-                  // 检查 API 返回结果
-                  if (result['code'] == 0 || result['code'] == 200 || result['success'] == true) {
-                    Navigator.pop(context);
-                    _loadScripts();
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('脚本上传成功'), backgroundColor: Colors.green),
-                      );
-                    }
-                  } else {
-                    throw Exception(result['message'] ?? '上传失败');
+                  // API 成功时直接返回数据，不检查 code
+                  Navigator.pop(context);
+                  _loadScripts();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('脚本上传成功'), backgroundColor: Colors.green),
+                    );
                   }
                 } catch (e) {
                   if (mounted) {
