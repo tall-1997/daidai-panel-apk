@@ -24,12 +24,12 @@
 
 ## 下载
 
-### 最新版本 v0.0.38
+### 最新版本 v0.0.39
 
 | 平台 | 下载链接 |
 |------|---------|
-| Android APK | [daidai-flutter-v0.0.38-android.apk](https://github.com/tall-1997/daidai-flutter/releases/download/v0.0.38/daidai-flutter-v0.0.38-android.apk) |
-| iOS IPA | [daidai-flutter-v0.0.38-ios.ipa](https://github.com/tall-1997/daidai-flutter/releases/download/v0.0.38/daidai-flutter-v0.0.38-ios.ipa) |
+| Android APK | [daidai-flutter-v0.0.39-android.apk](https://github.com/tall-1997/daidai-flutter/releases/download/v0.0.39/daidai-flutter-v0.0.39-android.apk) |
+| iOS IPA | [daidai-flutter-v0.0.39-ios.ipa](https://github.com/tall-1997/daidai-flutter/releases/download/v0.0.39/daidai-flutter-v0.0.39-ios.ipa) |
 
 > 所有版本: [Releases](https://github.com/tall-1997/daidai-flutter/releases)
 
@@ -137,6 +137,7 @@ flutter build ipa --release --no-codesign
 
 | 版本 | 主要更新 |
 |------|---------|
+| v0.0.39 | 修复仪表盘导航、日志状态筛选优化、删除配置Tab |
 | v0.0.38 | 新增仪表盘、订阅管理、个人设置、用户管理、开放API功能模块 |
 | v0.0.37 | 对接 v2.2.17：Python 多版本运行环境、任务级 Python 版本选择、依赖管理 Python 版本切换、备份文件导出导入、深色模式持续优化 |
 | v0.0.36 | 修复夜间模式白色背景问题、环境变量和日志页面深色模式适配 |
