@@ -24,12 +24,12 @@
 
 ## 下载
 
-### 最新版本 v0.0.55
+### 最新版本 v0.0.56
 
 | 平台 | 下载链接 |
 |------|---------|
-| Android APK | [daidai-flutter-v0.0.55-android.apk](https://github.com/tall-1997/daidai-flutter/releases/download/v0.0.55/daidai-flutter-v0.0.55-android.apk) |
-| iOS IPA | [daidai-flutter-v0.0.55-ios.ipa](https://github.com/tall-1997/daidai-flutter/releases/download/v0.0.55/daidai-flutter-v0.0.55-ios.ipa) |
+| Android APK | [daidai-flutter-v0.0.56-android.apk](https://github.com/tall-1997/daidai-flutter/releases/download/v0.0.56/daidai-flutter-v0.0.56-android.apk) |
+| iOS IPA | [daidai-flutter-v0.0.56-ios.ipa](https://github.com/tall-1997/daidai-flutter/releases/download/v0.0.56/daidai-flutter-v0.0.56-ios.ipa) |
 
 > 所有版本: [Releases](https://github.com/tall-1997/daidai-flutter/releases)
 
@@ -137,6 +137,7 @@ flutter build ipa --release --no-codesign
 
 | 版本 | 主要更新 |
 |------|---------|
+| v0.0.56 | 修复版本号显示、任务日志实时刷新、脚本编辑器夜间模式文字颜色 |
 | v0.0.55 | 优化深色模式边框和背景对比度 |
 | v0.0.54 | 仪表盘资源趋势添加磁盘数据显示 |
 | v0.0.53 | 恢复设置页面主题切换功能 |
