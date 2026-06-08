@@ -26,6 +26,7 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
   // Trend data
   final List<double> _cpuHistory = [];
   final List<double> _memoryHistory = [];
+  final List<double> _diskHistory = [];
   Timer? _trendTimer;
   static const int _maxHistoryLength = 30;
 
@@ -52,16 +53,21 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
     _trendTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (mounted) {
         setState(() {
-          final cpuUsage = (_systemInfo['cpu_usage'] ?? 0).toDouble();
-          final memoryUsage = (_systemInfo['memory_usage'] ?? 0).toDouble();
+          final cpuUsage = (_systemInfo['cpu_usage'] ?? 0).toDouble() / 100;
+          final memoryUsage = (_systemInfo['memory_usage'] ?? 0).toDouble() / 100;
+          final diskUsage = (_systemInfo['disk_usage'] ?? 0).toDouble() / 100;
           _cpuHistory.add(cpuUsage);
           _memoryHistory.add(memoryUsage);
+          _diskHistory.add(diskUsage);
           
           if (_cpuHistory.length > _maxHistoryLength) {
             _cpuHistory.removeAt(0);
           }
           if (_memoryHistory.length > _maxHistoryLength) {
             _memoryHistory.removeAt(0);
+          }
+          if (_diskHistory.length > _maxHistoryLength) {
+            _diskHistory.removeAt(0);
           }
         });
       }
@@ -452,6 +458,7 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
                 painter: _TrendChartPainter(
                   cpuData: _cpuHistory,
                   memoryData: _memoryHistory,
+                  diskData: _diskHistory,
                   isDark: isDark,
                 ),
               ),
@@ -461,8 +468,10 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _buildLegendItem('CPU', Colors.blue),
-                const SizedBox(width: 24),
+                const SizedBox(width: 16),
                 _buildLegendItem('内存', Colors.green),
+                const SizedBox(width: 16),
+                _buildLegendItem('磁盘', Colors.orange),
               ],
             ),
           ],
@@ -687,11 +696,13 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
 class _TrendChartPainter extends CustomPainter {
   final List<double> cpuData;
   final List<double> memoryData;
+  final List<double> diskData;
   final bool isDark;
 
   _TrendChartPainter({
     required this.cpuData,
     required this.memoryData,
+    required this.diskData,
     required this.isDark,
   });
 
@@ -736,6 +747,22 @@ class _TrendChartPainter extends CustomPainter {
       }
     }
     canvas.drawPath(path, paint);
+
+    // Draw Disk line
+    if (diskData.isNotEmpty) {
+      paint.color = Colors.orange;
+      path.reset();
+      for (int i = 0; i < diskData.length; i++) {
+        final x = i * stepX;
+        final y = height - (diskData[i].clamp(0.0, 1.0) * height);
+        if (i == 0) {
+          path.moveTo(x, y);
+        } else {
+          path.lineTo(x, y);
+        }
+      }
+      canvas.drawPath(path, paint);
+    }
   }
 
   @override
