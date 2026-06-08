@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import '../services/auth_service.dart';
+import '../services/log_service.dart';
 import '../theme/miuix_theme.dart';
 import '../widgets/miuix_widgets.dart';
 import 'home_screen.dart';
@@ -580,8 +581,24 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
             ListTile(
               leading: const Icon(Icons.info_outline),
               title: const Text('版本'),
-              subtitle: const Text('v0.0.39'),
+              subtitle: const Text('v0.0.45'),
             ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.bug_report),
+              title: const Text('导出调试日志'),
+              subtitle: const Text('导出 App 运行日志用于问题排查'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _showExportLogDialog(),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('清除日志'),
+              subtitle: const Text('清除本地缓存的调试日志'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _showClearLogDialog(),
+            ),
+            const Divider(),
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text('退出登录'),
@@ -612,6 +629,88 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showExportLogDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('导出调试日志'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('选择导出格式：'),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.code),
+              title: const Text('JSON 格式'),
+              subtitle: const Text('结构化数据，便于程序分析'),
+              onTap: () {
+                Navigator.pop(context);
+                _exportLogs(json: true);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.text_snippet),
+              title: const Text('文本格式'),
+              subtitle: const Text('可读性好，便于人工查看'),
+              onTap: () {
+                Navigator.pop(context);
+                _exportLogs(json: false);
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _exportLogs({required bool json}) async {
+    try {
+      final logService = context.read<LogService>();
+      await logService.shareLogs(json: json);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('导出失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _showClearLogDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清除日志'),
+        content: const Text('确定要清除所有本地调试日志吗？此操作不可撤销。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final logService = context.read<LogService>();
+              logService.clear();
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('日志已清除'), backgroundColor: Colors.green),
+              );
+            },
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('清除'),
+          ),
+        ],
       ),
     );
   }

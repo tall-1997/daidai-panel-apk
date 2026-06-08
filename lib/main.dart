@@ -5,6 +5,7 @@ import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/auth_service.dart';
 import 'services/notification_service.dart';
+import 'services/log_service.dart';
 import 'theme/miuix_theme.dart';
 
 class ThemeProvider extends ChangeNotifier {
@@ -53,6 +54,7 @@ class DaidaiApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthService()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        Provider(create: (_) => LogService()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) => MaterialApp(

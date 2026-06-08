@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import '../services/auth_service.dart';
+import '../services/log_service.dart';
 import '../theme/miuix_theme.dart';
 import '../widgets/miuix_widgets.dart';
 import 'home_screen.dart';
@@ -71,6 +72,9 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
       _isLoading = true;
     });
 
+    final logService = context.read<LogService>();
+    logService.info('Dashboard', '开始加载仪表盘数据');
+
     try {
       final authService = context.read<AuthService>();
       
@@ -79,29 +83,34 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
       Map<String, dynamic> system = {};
       
       try {
+        logService.debug('Dashboard', '调用 getDashboard API');
         final dashboardResult = await authService.apiService.getDashboard();
+        logService.info('Dashboard', 'Dashboard API 返回: $dashboardResult');
+        
         if (dashboardResult is Map && dashboardResult.containsKey('data')) {
           dashboard = Map<String, dynamic>.from(dashboardResult['data'] ?? {});
         } else if (dashboardResult is Map) {
           dashboard = Map<String, dynamic>.from(dashboardResult);
         }
+        logService.info('Dashboard', '处理后的 Dashboard 数据: $dashboard');
       } catch (e) {
-        debugPrint('Dashboard API error: $e');
+        logService.error('Dashboard', 'Dashboard API 错误: $e');
       }
       
       try {
+        logService.debug('Dashboard', '调用 getSystemInfo API');
         final systemResult = await authService.apiService.getSystemInfo();
+        logService.info('Dashboard', 'SystemInfo API 返回: $systemResult');
+        
         if (systemResult is Map && systemResult.containsKey('data')) {
           system = Map<String, dynamic>.from(systemResult['data'] ?? {});
         } else if (systemResult is Map) {
           system = Map<String, dynamic>.from(systemResult);
         }
+        logService.info('Dashboard', '处理后的 System 数据: $system');
       } catch (e) {
-        debugPrint('System API error: $e');
+        logService.error('Dashboard', 'SystemInfo API 错误: $e');
       }
-
-      debugPrint('Dashboard data: $dashboard');
-      debugPrint('System data: $system');
 
       if (mounted) {
         setState(() {
@@ -109,9 +118,10 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
           _systemInfo = system;
           _isLoading = false;
         });
+        logService.info('Dashboard', '仪表盘数据加载完成');
       }
     } catch (e) {
-      debugPrint('Load data error: $e');
+      logService.error('Dashboard', '加载数据异常: $e');
       if (mounted) {
         setState(() {
           _dashboardData = {};
