@@ -1749,11 +1749,33 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
   List<Map<String, dynamic>> _taskLogs = [];
   bool _isLoadingLogs = false;
   Map<String, dynamic>? _selectedLog;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _loadTaskLogs();
+    _startAutoRefresh();
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startAutoRefresh() {
+    final status = widget.task['status'] ?? 0;
+    final statusNum = status is int ? status.toDouble() : (status ?? 0.0);
+    
+    // 如果任务正在运行，每3秒刷新一次日志
+    if (statusNum == 2) {
+      _refreshTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+        if (mounted) {
+          _loadTaskLogs();
+        }
+      });
+    }
   }
 
   Future<void> _loadTaskLogs() async {

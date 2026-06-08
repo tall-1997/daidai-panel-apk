@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:convert';
 import '../main.dart';
 import '../services/auth_service.dart';
@@ -22,11 +23,22 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
   String? _error;
   bool _is2FAEnabled = false;
   bool _showUserManagement = false;
+  String _appVersion = '';
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _appVersion = '${packageInfo.version}+${packageInfo.buildNumber}';
+      });
+    }
   }
 
   @override
@@ -649,7 +661,7 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
             ListTile(
               leading: const Icon(Icons.info_outline),
               title: const Text('版本'),
-              subtitle: const Text('v0.0.45'),
+              subtitle: Text(_appVersion.isNotEmpty ? _appVersion : '加载中...'),
             ),
             const Divider(),
             ListTile(

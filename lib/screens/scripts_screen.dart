@@ -1638,11 +1638,15 @@ class _ScriptEditorScreenState extends State<_ScriptEditorScreen> {
                 fontFamily: 'monospace',
                 fontSize: _fontSize,
                 height: 1.5,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
-              decoration: const InputDecoration(
-                contentPadding: EdgeInsets.all(12),
+              decoration: InputDecoration(
+                contentPadding: const EdgeInsets.all(12),
                 border: InputBorder.none,
                 hintText: '输入脚本内容...',
+                hintStyle: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                ),
               ),
               keyboardType: TextInputType.multiline,
               textInputAction: TextInputAction.newline,
