@@ -73,33 +73,15 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
 
     try {
       final authService = context.read<AuthService>();
-      
-      // 分别加载数据，避免一个失败导致全部失败
-      Map<String, dynamic> dashboard = {};
-      Map<String, dynamic> system = {};
-      
-      try {
-        final dashboardResult = await authService.apiService.getDashboard();
-        if (dashboardResult is Map) {
-          dashboard = Map<String, dynamic>.from(dashboardResult['data'] ?? dashboardResult);
-        }
-      } catch (e) {
-        debugPrint('Dashboard API error: $e');
-      }
-      
-      try {
-        final systemResult = await authService.apiService.getSystemInfo();
-        if (systemResult is Map) {
-          system = Map<String, dynamic>.from(systemResult['data'] ?? systemResult);
-        }
-      } catch (e) {
-        debugPrint('System API error: $e');
-      }
+      final results = await Future.wait([
+        authService.apiService.getDashboard(),
+        authService.apiService.getSystemInfo(),
+      ]);
 
       if (mounted) {
         setState(() {
-          _dashboardData = dashboard;
-          _systemInfo = system;
+          _dashboardData = results[0]['data'] ?? results[0];
+          _systemInfo = results[1]['data'] ?? results[1];
           _isLoading = false;
         });
       }
