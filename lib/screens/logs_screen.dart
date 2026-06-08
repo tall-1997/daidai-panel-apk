@@ -779,15 +779,23 @@ class _LogDetailSheet extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Container(
+            constraints: const BoxConstraints(maxHeight: 400),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: isDark ? MiuixColors.darkSurfaceContainerHighest : Colors.grey[100],
               borderRadius: BorderRadius.circular(8),
             ),
-            child: SelectableText(
-              _cleanContent(content).isEmpty ? '无日志内容' : _cleanContent(content),
-              style: MiuixTextStyles.monospace.copyWith(
-                color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
+            child: Scrollbar(
+              thumbVisibility: true,
+              thickness: 6.0,
+              radius: const Radius.circular(3),
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  _cleanContent(content).isEmpty ? '无日志内容' : _cleanContent(content),
+                  style: MiuixTextStyles.monospace.copyWith(
+                    color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
+                  ),
+                ),
               ),
             ),
           ),

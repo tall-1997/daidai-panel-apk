@@ -16,8 +16,8 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> with RefreshableScreen {
-  Map<String, dynamic>? _dashboardData;
-  Map<String, dynamic>? _systemInfo;
+  Map<String, dynamic> _dashboardData = {};
+  Map<String, dynamic> _systemInfo = {};
   bool _isLoading = true;
   String? _error;
   Timer? _refreshTimer;
@@ -49,10 +49,10 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
 
   void _startTrendMonitoring() {
     _trendTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      if (_systemInfo != null && mounted) {
+      if (mounted && _systemInfo.isNotEmpty) {
         setState(() {
-          _cpuHistory.add(_systemInfo!['cpu_usage']?.toDouble() ?? 0);
-          _memoryHistory.add(_systemInfo!['memory_usage']?.toDouble() ?? 0);
+          _cpuHistory.add((_systemInfo['cpu_usage'] ?? 0).toDouble());
+          _memoryHistory.add((_systemInfo['memory_usage'] ?? 0).toDouble());
           
           if (_cpuHistory.length > _maxHistoryLength) {
             _cpuHistory.removeAt(0);
@@ -73,15 +73,35 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
 
     try {
       final authService = context.read<AuthService>();
-      final results = await Future.wait([
-        authService.apiService.getDashboard(),
-        authService.apiService.getSystemInfo(),
-      ]);
+      
+      // 分别加载数据，避免一个失败导致全部失败
+      Map<String, dynamic> dashboard = {};
+      Map<String, dynamic> system = {};
+      
+      try {
+        final dashboardResult = await authService.apiService.getDashboard();
+        dashboard = dashboardResult['data'] ?? dashboardResult;
+        if (dashboard is! Map<String, dynamic>) {
+          dashboard = {};
+        }
+      } catch (e) {
+        // Dashboard API 失败，使用空数据
+      }
+      
+      try {
+        final systemResult = await authService.apiService.getSystemInfo();
+        system = systemResult['data'] ?? systemResult;
+        if (system is! Map<String, dynamic>) {
+          system = {};
+        }
+      } catch (e) {
+        // System API 失败，使用空数据
+      }
 
       if (mounted) {
         setState(() {
-          _dashboardData = results[0]['data'] ?? results[0];
-          _systemInfo = results[1]['data'] ?? results[1];
+          _dashboardData = dashboard;
+          _systemInfo = system;
           _isLoading = false;
         });
       }
@@ -132,10 +152,10 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
   }
 
   Widget _buildStatsCards(bool isDark) {
-    final taskCount = _dashboardData?['task_count'] ?? _systemInfo?['task_count'] ?? 0;
-    final envCount = _dashboardData?['env_count'] ?? _systemInfo?['env_count'] ?? 0;
-    final todayRuns = _dashboardData?['today_runs'] ?? _systemInfo?['today_runs'] ?? 0;
-    final successRate = _dashboardData?['success_rate'] ?? _systemInfo?['success_rate'] ?? 0.0;
+    final taskCount = _dashboardData['task_count'] ?? _systemInfo['task_count'] ?? 0;
+    final envCount = _dashboardData['env_count'] ?? _systemInfo['env_count'] ?? 0;
+    final todayRuns = _dashboardData['today_runs'] ?? _systemInfo['today_runs'] ?? 0;
+    final successRate = _dashboardData['success_rate'] ?? _systemInfo['success_rate'] ?? 0.0;
 
     return GridView.count(
       shrinkWrap: true,
@@ -282,13 +302,13 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
   }
 
   Widget _buildSystemResourceCard(bool isDark) {
-    final cpuUsage = _systemInfo?['cpu_usage']?.toDouble() ?? 0.0;
-    final memoryUsage = _systemInfo?['memory_usage']?.toDouble() ?? 0.0;
-    final diskUsage = _systemInfo?['disk_usage']?.toDouble() ?? 0.0;
-    final memoryTotal = _systemInfo?['memory_total'] ?? 0;
-    final memoryUsed = _systemInfo?['memory_used'] ?? 0;
-    final diskTotal = _systemInfo?['disk_total'] ?? 0;
-    final diskUsed = _systemInfo?['disk_used'] ?? 0;
+    final cpuUsage = (_systemInfo['cpu_usage'] ?? 0).toDouble();
+    final memoryUsage = (_systemInfo['memory_usage'] ?? 0).toDouble();
+    final diskUsage = (_systemInfo['disk_usage'] ?? 0).toDouble();
+    final memoryTotal = _systemInfo['memory_total'] ?? 0;
+    final memoryUsed = _systemInfo['memory_used'] ?? 0;
+    final diskTotal = _systemInfo['disk_total'] ?? 0;
+    final diskUsed = _systemInfo['disk_used'] ?? 0;
 
     return Card(
       child: Padding(
@@ -370,7 +390,7 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
         ),
         const SizedBox(height: 4),
         LinearProgressIndicator(
-          value: value,
+          value: value.clamp(0.0, 1.0),
           backgroundColor: color.withOpacity(0.1),
           valueColor: AlwaysStoppedAnimation<Color>(color),
           minHeight: 8,
@@ -440,8 +460,10 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
   }
 
   Widget _buildRecentTasks(bool isDark) {
-    final recentTasks = _dashboardData?['recent_tasks'] ?? [];
-    if (recentTasks.isEmpty) return const SizedBox.shrink();
+    final recentTasks = _dashboardData['recent_tasks'] ?? [];
+    if (recentTasks is! List || recentTasks.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Card(
       child: Padding(
@@ -558,11 +580,11 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
   }
 
   Widget _buildSystemInfoCard(bool isDark) {
-    final panelVersion = _systemInfo?['panel_version'] ?? _systemInfo?['version'] ?? '未知';
-    final goVersion = _systemInfo?['go_version'] ?? '';
-    final os = _systemInfo?['os'] ?? '';
-    final arch = _systemInfo?['arch'] ?? '';
-    final uptime = _systemInfo?['uptime'] ?? 0;
+    final panelVersion = _systemInfo['panel_version'] ?? _systemInfo['version'] ?? '未知';
+    final goVersion = _systemInfo['go_version'] ?? '';
+    final os = _systemInfo['os'] ?? '';
+    final arch = _systemInfo['arch'] ?? '';
+    final uptime = _systemInfo['uptime'] ?? 0;
 
     return Card(
       child: Padding(
@@ -579,9 +601,9 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
               ),
             ),
             const SizedBox(height: 12),
-            _buildInfoRow('面板版本', panelVersion, isDark),
-            if (goVersion.isNotEmpty) _buildInfoRow('Go 版本', goVersion, isDark),
-            if (os.isNotEmpty) _buildInfoRow('操作系统', '$os ($arch)', isDark),
+            _buildInfoRow('面板版本', panelVersion.toString(), isDark),
+            if (goVersion.toString().isNotEmpty) _buildInfoRow('Go 版本', goVersion.toString(), isDark),
+            if (os.toString().isNotEmpty) _buildInfoRow('操作系统', '$os ($arch)', isDark),
             if (uptime > 0) _buildInfoRow('运行时间', _formatUptime(uptime), isDark),
           ],
         ),
@@ -654,7 +676,7 @@ class _TrendChartPainter extends CustomPainter {
     path.reset();
     for (int i = 0; i < cpuData.length; i++) {
       final x = i * stepX;
-      final y = height - (cpuData[i] * height);
+      final y = height - (cpuData[i].clamp(0.0, 1.0) * height);
       if (i == 0) {
         path.moveTo(x, y);
       } else {
@@ -668,7 +690,7 @@ class _TrendChartPainter extends CustomPainter {
     path.reset();
     for (int i = 0; i < memoryData.length; i++) {
       final x = i * stepX;
-      final y = height - (memoryData[i] * height);
+      final y = height - (memoryData[i].clamp(0.0, 1.0) * height);
       if (i == 0) {
         path.moveTo(x, y);
       } else {

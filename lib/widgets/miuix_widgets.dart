@@ -153,8 +153,13 @@ class MiuixCodeBlock extends StatelessWidget {
         color: isDark ? MiuixColors.darkSurfaceContainerHighest : MiuixColors.surface,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: SingleChildScrollView(
-        child: SelectableText(content, style: MiuixTextStyles.monospace),
+      child: Scrollbar(
+        thumbVisibility: true,
+        thickness: 6.0,
+        radius: const Radius.circular(3),
+        child: SingleChildScrollView(
+          child: SelectableText(content, style: MiuixTextStyles.monospace),
+        ),
       ),
     );
   }

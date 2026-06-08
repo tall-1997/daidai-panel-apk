@@ -378,8 +378,6 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
                   padding: const EdgeInsets.all(16),
                   children: [
                     _buildProfileCard(isDark, authService),
-                    const SizedBox(height: 16),
-                    _buildSecurityCard(isDark),
                     if (isAdmin) ...[
                       const SizedBox(height: 16),
                       _buildUserManagementCard(isDark),
@@ -483,52 +481,6 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
                   ),
                 ),
               ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSecurityCard(bool isDark) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '安全设置',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
-              ),
-            ),
-            const SizedBox(height: 8),
-            ListTile(
-              leading: Icon(
-                Icons.security,
-                color: _is2FAEnabled ? Colors.green : Colors.grey,
-              ),
-              title: const Text('双因素认证'),
-              subtitle: Text(_is2FAEnabled ? '已启用' : '未启用'),
-              trailing: Switch(
-                value: _is2FAEnabled,
-                onChanged: (value) {
-                  // TODO: 实现2FA开关
-                },
-              ),
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.devices),
-              title: const Text('会话管理'),
-              subtitle: const Text('管理登录会话'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                // TODO: 跳转到会话管理
-              },
             ),
           ],
         ),
