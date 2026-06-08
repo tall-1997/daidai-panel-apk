@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:convert';
 import '../services/auth_service.dart';
 import '../theme/miuix_theme.dart';
 import '../widgets/miuix_widgets.dart';
@@ -37,9 +38,7 @@ class _UsersScreenState extends State<UsersScreen> with RefreshableScreen {
     try {
       final authService = context.read<AuthService>();
       final response = await authService.apiService.get('/users');
-      final result = Map<String, dynamic>.from(
-        response is Map ? response : {'data': []},
-      );
+      final result = jsonDecode(response.body);
 
       if (mounted) {
         setState(() {
