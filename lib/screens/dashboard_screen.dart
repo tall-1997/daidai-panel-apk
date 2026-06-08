@@ -131,10 +131,17 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
   }
 
   Widget _buildStatsCards(bool isDark) {
-    final taskCount = _dashboardData['task_count'] ?? _systemInfo['task_count'] ?? 0;
-    final envCount = _dashboardData['env_count'] ?? _systemInfo['env_count'] ?? 0;
-    final todayRuns = _dashboardData['today_runs'] ?? _systemInfo['today_runs'] ?? 0;
-    final successRate = _dashboardData['success_rate'] ?? _systemInfo['success_rate'] ?? 0.0;
+    final taskCount = _dashboardData['task_count'] ?? 0;
+    final envCount = _dashboardData['env_count'] ?? 0;
+    final todayLogs = _dashboardData['today_logs'] ?? 0;
+    final successLogs = _dashboardData['success_logs'] ?? 0;
+    final failedLogs = _dashboardData['failed_logs'] ?? 0;
+    
+    // 计算成功率
+    double successRate = 0.0;
+    if (todayLogs > 0) {
+      successRate = successLogs / todayLogs;
+    }
 
     return GridView.count(
       shrinkWrap: true,
@@ -160,16 +167,16 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
         ),
         _buildStatCard(
           '今日执行',
-          '$todayRuns',
+          '$todayLogs',
           Icons.play_circle,
           Colors.orange,
           isDark,
         ),
         _buildStatCard(
           '成功率',
-          '${(successRate is num ? successRate * 100 : 0).toStringAsFixed(1)}%',
+          '${(successRate * 100).toStringAsFixed(1)}%',
           Icons.check_circle,
-          (successRate is num && successRate >= 0.9) ? Colors.green : Colors.red,
+          successRate >= 0.9 ? Colors.green : Colors.red,
           isDark,
         ),
       ],
@@ -443,8 +450,8 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
   }
 
   Widget _buildRecentTasks(bool isDark) {
-    final recentTasks = _dashboardData['recent_tasks'];
-    if (recentTasks == null || recentTasks is! List || recentTasks.isEmpty) {
+    final recentLogs = _dashboardData['recent_logs'];
+    if (recentLogs == null || recentLogs is! List || recentLogs.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -472,17 +479,17 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
               ],
             ),
             const SizedBox(height: 8),
-            ...recentTasks.take(5).map((task) => _buildRecentTaskItem(task, isDark)),
+            ...recentLogs.take(5).map((log) => _buildRecentLogItem(log, isDark)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildRecentTaskItem(Map<String, dynamic> task, bool isDark) {
-    final name = task['task_name'] ?? task['name'] ?? '未知任务';
-    final status = task['status'] ?? 0;
-    final time = task['created_at'] ?? task['started_at'] ?? '';
+  Widget _buildRecentLogItem(Map<String, dynamic> log, bool isDark) {
+    final taskName = log['task_name'] ?? log['task']?['name'] ?? '未知任务';
+    final status = log['status'] ?? 0;
+    final createdAt = log['created_at'] ?? '';
 
     Color statusColor;
     String statusText;
@@ -522,7 +529,7 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  name,
+                  taskName,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -531,9 +538,9 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (time.isNotEmpty)
+                if (createdAt.isNotEmpty)
                   Text(
-                    time,
+                    createdAt,
                     style: TextStyle(
                       fontSize: 12,
                       color: isDark ? MiuixColors.darkOnSurfaceVariantSummary : MiuixColors.onSurfaceVariantSummary,
