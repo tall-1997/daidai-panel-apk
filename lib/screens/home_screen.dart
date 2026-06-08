@@ -2,15 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../theme/miuix_theme.dart';
+import 'dashboard_screen.dart';
 import 'tasks_screen.dart';
 import 'envs_screen.dart';
 import 'dependencies_screen.dart';
 import 'scripts_screen.dart';
 import 'logs_screen.dart';
+import 'subscriptions_screen.dart';
 import 'system_screen.dart';
 import 'settings_screen.dart';
 import 'config_screen.dart';
 import 'security_screen.dart';
+import 'profile_screen.dart';
+import 'users_screen.dart';
+import 'open_api_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,15 +31,20 @@ class _HomeScreenState extends State<HomeScreen> {
   String _panelVersion = '';
 
   final List<_NavigationItem> _navigationItems = [
+    _NavigationItem(Icons.dashboard, '仪表盘'),
     _NavigationItem(Icons.list_alt, '任务'),
     _NavigationItem(Icons.settings_ethernet, '环境变量'),
     _NavigationItem(Icons.extension, '依赖管理'),
     _NavigationItem(Icons.code, '脚本'),
     _NavigationItem(Icons.article, '日志'),
+    _NavigationItem(Icons.subscriptions, '订阅'),
+    _NavigationItem(Icons.vpn_key, '开放API'),
     _NavigationItem(Icons.computer, '系统'),
     _NavigationItem(Icons.security, '安全'),
     _NavigationItem(Icons.settings, '配置'),
     _NavigationItem(Icons.tune, '设置'),
+    _NavigationItem(Icons.people, '用户'),
+    _NavigationItem(Icons.person, '我的'),
   ];
 
   @override
@@ -313,25 +323,35 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _getSelectedScreen() {
     switch (_selectedIndex) {
       case 0:
-        return TasksScreen(key: _refreshableScreenKey);
+        return DashboardScreen(key: _refreshableScreenKey);
       case 1:
-        return EnvsScreen(key: _refreshableScreenKey);
-      case 2:
-        return DependenciesScreen(key: _refreshableScreenKey);
-      case 3:
-        return ScriptsScreen(key: _refreshableScreenKey);
-      case 4:
-        return LogsScreen(key: _refreshableScreenKey);
-      case 5:
-        return SystemScreen(key: _refreshableScreenKey);
-      case 6:
-        return SecurityScreen(key: _refreshableScreenKey);
-      case 7:
-        return ConfigScreen(key: _refreshableScreenKey);
-      case 8:
-        return SettingsScreen(key: _refreshableScreenKey);
-      default:
         return TasksScreen(key: _refreshableScreenKey);
+      case 2:
+        return EnvsScreen(key: _refreshableScreenKey);
+      case 3:
+        return DependenciesScreen(key: _refreshableScreenKey);
+      case 4:
+        return ScriptsScreen(key: _refreshableScreenKey);
+      case 5:
+        return LogsScreen(key: _refreshableScreenKey);
+      case 6:
+        return SubscriptionsScreen(key: _refreshableScreenKey);
+      case 7:
+        return OpenApiScreen(key: _refreshableScreenKey);
+      case 8:
+        return SystemScreen(key: _refreshableScreenKey);
+      case 9:
+        return SecurityScreen(key: _refreshableScreenKey);
+      case 10:
+        return ConfigScreen(key: _refreshableScreenKey);
+      case 11:
+        return SettingsScreen(key: _refreshableScreenKey);
+      case 12:
+        return UsersScreen(key: _refreshableScreenKey);
+      case 13:
+        return ProfileScreen(key: _refreshableScreenKey);
+      default:
+        return DashboardScreen(key: _refreshableScreenKey);
     }
   }
 }
