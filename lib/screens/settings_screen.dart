@@ -54,7 +54,8 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
       if (userData['role'] == 'admin') {
         try {
           final usersResponse = await authService.apiService.get('/users');
-          users = List<Map<String, dynamic>>.from(usersResponse['data'] ?? []);
+          final usersResult = jsonDecode(usersResponse.body);
+          users = List<Map<String, dynamic>>.from(usersResult['data'] ?? []);
         } catch (e) {
           // 忽略错误
         }
