@@ -73,33 +73,37 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
 
     try {
       final authService = context.read<AuthService>();
-      final results = await Future.wait([
-        authService.apiService.getDashboard(),
-        authService.apiService.getSystemInfo(),
-      ]);
+      
+      // 分别加载数据，一个失败不影响另一个
+      Map<String, dynamic> dashboard = {};
+      Map<String, dynamic> system = {};
+      
+      try {
+        final dashboardResult = await authService.apiService.getDashboard();
+        if (dashboardResult is Map && dashboardResult.containsKey('data')) {
+          dashboard = Map<String, dynamic>.from(dashboardResult['data'] ?? {});
+        } else if (dashboardResult is Map) {
+          dashboard = Map<String, dynamic>.from(dashboardResult);
+        }
+      } catch (e) {
+        debugPrint('Dashboard API error: $e');
+      }
+      
+      try {
+        final systemResult = await authService.apiService.getSystemInfo();
+        if (systemResult is Map && systemResult.containsKey('data')) {
+          system = Map<String, dynamic>.from(systemResult['data'] ?? {});
+        } else if (systemResult is Map) {
+          system = Map<String, dynamic>.from(systemResult);
+        }
+      } catch (e) {
+        debugPrint('System API error: $e');
+      }
 
-      debugPrint('Dashboard API response: ${results[0]}');
-      debugPrint('System API response: ${results[1]}');
+      debugPrint('Dashboard data: $dashboard');
+      debugPrint('System data: $system');
 
       if (mounted) {
-        final dashboardData = results[0];
-        final systemData = results[1];
-        
-        // 处理仪表盘数据
-        Map<String, dynamic> dashboard = {};
-        if (dashboardData is Map) {
-          dashboard = Map<String, dynamic>.from(dashboardData['data'] ?? dashboardData);
-        }
-        
-        // 处理系统信息数据
-        Map<String, dynamic> system = {};
-        if (systemData is Map) {
-          system = Map<String, dynamic>.from(systemData['data'] ?? systemData);
-        }
-
-        debugPrint('Processed dashboard: $dashboard');
-        debugPrint('Processed system: $system');
-
         setState(() {
           _dashboardData = dashboard;
           _systemInfo = system;
@@ -107,7 +111,7 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
         });
       }
     } catch (e) {
-      debugPrint('Dashboard load error: $e');
+      debugPrint('Load data error: $e');
       if (mounted) {
         setState(() {
           _dashboardData = {};
