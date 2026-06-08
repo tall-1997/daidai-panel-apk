@@ -279,12 +279,6 @@ class _OpenApiScreenState extends State<OpenApiScreen> with RefreshableScreen {
     return Scaffold(
       appBar: AppBar(
         title: const Text('开放 API'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadApiKeys,
-          ),
-        ],
       ),
       body: _isLoading
           ? const MiuixLoadingState()

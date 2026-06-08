@@ -172,12 +172,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> with Refresha
     return Scaffold(
       appBar: AppBar(
         title: const Text('通知管理'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadNotifications,
-          ),
-        ],
       ),
       body: Column(
         children: [

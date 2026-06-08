@@ -301,12 +301,6 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> with Refresha
     return Scaffold(
       appBar: AppBar(
         title: const Text('订阅管理'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadSubscriptions,
-          ),
-        ],
       ),
       body: _isLoading
           ? const MiuixLoadingState()

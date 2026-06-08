@@ -17,26 +17,52 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> with RefreshableScreen {
   Map<String, dynamic>? _dashboardData;
-  Map<String, dynamic>? _stats;
+  Map<String, dynamic>? _systemInfo;
   bool _isLoading = true;
   String? _error;
   Timer? _refreshTimer;
+
+  // Trend data
+  final List<double> _cpuHistory = [];
+  final List<double> _memoryHistory = [];
+  Timer? _trendTimer;
+  static const int _maxHistoryLength = 30;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _startTrendMonitoring();
   }
 
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _trendTimer?.cancel();
     super.dispose();
   }
 
   @override
   void refresh() {
     _loadData();
+  }
+
+  void _startTrendMonitoring() {
+    _trendTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (_systemInfo != null && mounted) {
+        setState(() {
+          _cpuHistory.add(_systemInfo!['cpu_usage']?.toDouble() ?? 0);
+          _memoryHistory.add(_systemInfo!['memory_usage']?.toDouble() ?? 0);
+          
+          if (_cpuHistory.length > _maxHistoryLength) {
+            _cpuHistory.removeAt(0);
+          }
+          if (_memoryHistory.length > _maxHistoryLength) {
+            _memoryHistory.removeAt(0);
+          }
+        });
+      }
+    });
   }
 
   Future<void> _loadData() async {
@@ -49,13 +75,13 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
       final authService = context.read<AuthService>();
       final results = await Future.wait([
         authService.apiService.getDashboard(),
-        authService.apiService.getStats(),
+        authService.apiService.getSystemInfo(),
       ]);
 
       if (mounted) {
         setState(() {
           _dashboardData = results[0]['data'] ?? results[0];
-          _stats = results[1]['data'] ?? results[1];
+          _systemInfo = results[1]['data'] ?? results[1];
           _isLoading = false;
         });
       }
@@ -76,12 +102,6 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
     return Scaffold(
       appBar: AppBar(
         title: const Text('仪表盘'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadData,
-          ),
-        ],
       ),
       body: _isLoading
           ? const MiuixLoadingState()
@@ -96,9 +116,15 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
                       const SizedBox(height: 16),
                       _buildQuickActions(isDark),
                       const SizedBox(height: 16),
+                      _buildSystemResourceCard(isDark),
+                      if (_cpuHistory.length >= 3) ...[
+                        const SizedBox(height: 16),
+                        _buildTrendChartCard(isDark),
+                      ],
+                      const SizedBox(height: 16),
                       _buildRecentTasks(isDark),
                       const SizedBox(height: 16),
-                      _buildSystemInfo(isDark),
+                      _buildSystemInfoCard(isDark),
                     ],
                   ),
                 ),
@@ -106,10 +132,10 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
   }
 
   Widget _buildStatsCards(bool isDark) {
-    final taskCount = _stats?['task_count'] ?? _dashboardData?['task_count'] ?? 0;
-    final envCount = _stats?['env_count'] ?? _dashboardData?['env_count'] ?? 0;
-    final todayRuns = _stats?['today_runs'] ?? _dashboardData?['today_runs'] ?? 0;
-    final successRate = _stats?['success_rate'] ?? _dashboardData?['success_rate'] ?? 0.0;
+    final taskCount = _dashboardData?['task_count'] ?? _systemInfo?['task_count'] ?? 0;
+    final envCount = _dashboardData?['env_count'] ?? _systemInfo?['env_count'] ?? 0;
+    final todayRuns = _dashboardData?['today_runs'] ?? _systemInfo?['today_runs'] ?? 0;
+    final successRate = _dashboardData?['success_rate'] ?? _systemInfo?['success_rate'] ?? 0.0;
 
     return GridView.count(
       shrinkWrap: true,
@@ -142,9 +168,9 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
         ),
         _buildStatCard(
           '成功率',
-          '${(successRate * 100).toStringAsFixed(1)}%',
+          '${(successRate is num ? successRate * 100 : 0).toStringAsFixed(1)}%',
           Icons.check_circle,
-          successRate >= 0.9 ? Colors.green : Colors.red,
+          (successRate is num && successRate >= 0.9) ? Colors.green : Colors.red,
           isDark,
         ),
       ],
@@ -206,16 +232,16 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildActionButton('任务', Icons.task_alt, Colors.blue, () {
-                  widget.onNavigate?.call(1); // 任务在索引1
+                  widget.onNavigate?.call(1);
                 }),
                 _buildActionButton('脚本', Icons.code, Colors.green, () {
-                  widget.onNavigate?.call(4); // 脚本在索引4
+                  widget.onNavigate?.call(4);
                 }),
                 _buildActionButton('日志', Icons.article, Colors.orange, () {
-                  widget.onNavigate?.call(5); // 日志在索引5
+                  widget.onNavigate?.call(5);
                 }),
                 _buildActionButton('变量', Icons.key, Colors.purple, () {
-                  widget.onNavigate?.call(2); // 环境变量在索引2
+                  widget.onNavigate?.call(2);
                 }),
               ],
             ),
@@ -244,7 +270,7 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
             const SizedBox(height: 8),
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -252,6 +278,164 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSystemResourceCard(bool isDark) {
+    final cpuUsage = _systemInfo?['cpu_usage']?.toDouble() ?? 0.0;
+    final memoryUsage = _systemInfo?['memory_usage']?.toDouble() ?? 0.0;
+    final diskUsage = _systemInfo?['disk_usage']?.toDouble() ?? 0.0;
+    final memoryTotal = _systemInfo?['memory_total'] ?? 0;
+    final memoryUsed = _systemInfo?['memory_used'] ?? 0;
+    final diskTotal = _systemInfo?['disk_total'] ?? 0;
+    final diskUsed = _systemInfo?['disk_used'] ?? 0;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '系统资源',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildResourceBar(
+              'CPU',
+              cpuUsage,
+              Colors.blue,
+              isDark,
+              subtitle: '${(cpuUsage * 100).toStringAsFixed(1)}%',
+            ),
+            const SizedBox(height: 12),
+            _buildResourceBar(
+              '内存',
+              memoryUsage,
+              Colors.green,
+              isDark,
+              subtitle: '${_formatBytes(memoryUsed)} / ${_formatBytes(memoryTotal)}',
+            ),
+            const SizedBox(height: 12),
+            _buildResourceBar(
+              '磁盘',
+              diskUsage,
+              Colors.orange,
+              isDark,
+              subtitle: '${_formatBytes(diskUsed)} / ${_formatBytes(diskTotal)}',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatBytes(dynamic bytes) {
+    if (bytes == null || bytes == 0) return '0 B';
+    final b = bytes is int ? bytes : int.tryParse(bytes.toString()) ?? 0;
+    if (b < 1024) return '$b B';
+    if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(1)} KB';
+    if (b < 1024 * 1024 * 1024) return '${(b / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(b / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
+  Widget _buildResourceBar(String label, double value, Color color, bool isDark, {String? subtitle}) {
+    final percentage = (value * 100).toStringAsFixed(1);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? MiuixColors.darkOnSurfaceVariantSummary : MiuixColors.onSurfaceVariantSummary,
+              ),
+            ),
+            Text(
+              subtitle ?? '$percentage%',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        LinearProgressIndicator(
+          value: value,
+          backgroundColor: color.withOpacity(0.1),
+          valueColor: AlwaysStoppedAnimation<Color>(color),
+          minHeight: 8,
+          borderRadius: BorderRadius.circular(4),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTrendChartCard(bool isDark) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '资源趋势',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 150,
+              child: CustomPaint(
+                size: Size.infinite,
+                painter: _TrendChartPainter(
+                  cpuData: _cpuHistory,
+                  memoryData: _memoryHistory,
+                  isDark: isDark,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildLegendItem('CPU', Colors.blue),
+                const SizedBox(width: 24),
+                _buildLegendItem('内存', Colors.green),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(String label, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 12)),
+      ],
     );
   }
 
@@ -277,9 +461,7 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
                   ),
                 ),
                 TextButton(
-                  onPressed: () {
-                    // Navigate to logs
-                  },
+                  onPressed: () => widget.onNavigate?.call(5),
                   child: const Text('查看全部'),
                 ),
               ],
@@ -375,13 +557,12 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
     );
   }
 
-  Widget _buildSystemInfo(bool isDark) {
-    final systemInfo = _dashboardData?['system_info'] ?? _stats?['system_info'] ?? {};
-    if (systemInfo.isEmpty) return const SizedBox.shrink();
-
-    final cpuUsage = systemInfo['cpu_usage'] ?? 0.0;
-    final memoryUsage = systemInfo['memory_usage'] ?? 0.0;
-    final diskUsage = systemInfo['disk_usage'] ?? 0.0;
+  Widget _buildSystemInfoCard(bool isDark) {
+    final panelVersion = _systemInfo?['panel_version'] ?? _systemInfo?['version'] ?? '未知';
+    final goVersion = _systemInfo?['go_version'] ?? '';
+    final os = _systemInfo?['os'] ?? '';
+    final arch = _systemInfo?['arch'] ?? '';
+    final uptime = _systemInfo?['uptime'] ?? 0;
 
     return Card(
       child: Padding(
@@ -390,59 +571,113 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '系统资源',
+              '系统信息',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
               ),
             ),
-            const SizedBox(height: 16),
-            _buildResourceBar('CPU', cpuUsage, Colors.blue, isDark),
             const SizedBox(height: 12),
-            _buildResourceBar('内存', memoryUsage, Colors.green, isDark),
-            const SizedBox(height: 12),
-            _buildResourceBar('磁盘', diskUsage, Colors.orange, isDark),
+            _buildInfoRow('面板版本', panelVersion, isDark),
+            if (goVersion.isNotEmpty) _buildInfoRow('Go 版本', goVersion, isDark),
+            if (os.isNotEmpty) _buildInfoRow('操作系统', '$os ($arch)', isDark),
+            if (uptime > 0) _buildInfoRow('运行时间', _formatUptime(uptime), isDark),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildResourceBar(String label, double value, Color color, bool isDark) {
-    final percentage = (value * 100).toStringAsFixed(1);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                color: isDark ? MiuixColors.darkOnSurfaceVariantSummary : MiuixColors.onSurfaceVariantSummary,
-              ),
+  Widget _buildInfoRow(String label, String value, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark ? MiuixColors.darkOnSurfaceVariantSummary : MiuixColors.onSurfaceVariantSummary,
             ),
-            Text(
-              '$percentage%',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: color,
-              ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
             ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        LinearProgressIndicator(
-          value: value,
-          backgroundColor: color.withOpacity(0.1),
-          valueColor: AlwaysStoppedAnimation<Color>(color),
-          minHeight: 6,
-          borderRadius: BorderRadius.circular(3),
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
+
+  String _formatUptime(dynamic uptime) {
+    final seconds = uptime is int ? uptime : int.tryParse(uptime.toString()) ?? 0;
+    if (seconds < 60) return '$seconds 秒';
+    if (seconds < 3600) return '${(seconds / 60).floor()} 分钟';
+    if (seconds < 86400) return '${(seconds / 3600).floor()} 小时';
+    return '${(seconds / 86400).floor()} 天';
+  }
+}
+
+class _TrendChartPainter extends CustomPainter {
+  final List<double> cpuData;
+  final List<double> memoryData;
+  final bool isDark;
+
+  _TrendChartPainter({
+    required this.cpuData,
+    required this.memoryData,
+    required this.isDark,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (cpuData.isEmpty || memoryData.isEmpty) return;
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+
+    final path = Path();
+    final width = size.width;
+    final height = size.height;
+    final stepX = width / (cpuData.length - 1);
+
+    // Draw CPU line
+    paint.color = Colors.blue;
+    path.reset();
+    for (int i = 0; i < cpuData.length; i++) {
+      final x = i * stepX;
+      final y = height - (cpuData[i] * height);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    canvas.drawPath(path, paint);
+
+    // Draw Memory line
+    paint.color = Colors.green;
+    path.reset();
+    for (int i = 0; i < memoryData.length; i++) {
+      final x = i * stepX;
+      final y = height - (memoryData[i] * height);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
