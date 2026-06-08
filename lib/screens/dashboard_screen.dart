@@ -78,14 +78,36 @@ class _DashboardScreenState extends State<DashboardScreen> with RefreshableScree
         authService.apiService.getSystemInfo(),
       ]);
 
+      debugPrint('Dashboard API response: ${results[0]}');
+      debugPrint('System API response: ${results[1]}');
+
       if (mounted) {
+        final dashboardData = results[0];
+        final systemData = results[1];
+        
+        // 处理仪表盘数据
+        Map<String, dynamic> dashboard = {};
+        if (dashboardData is Map) {
+          dashboard = Map<String, dynamic>.from(dashboardData['data'] ?? dashboardData);
+        }
+        
+        // 处理系统信息数据
+        Map<String, dynamic> system = {};
+        if (systemData is Map) {
+          system = Map<String, dynamic>.from(systemData['data'] ?? systemData);
+        }
+
+        debugPrint('Processed dashboard: $dashboard');
+        debugPrint('Processed system: $system');
+
         setState(() {
-          _dashboardData = results[0]['data'] ?? results[0];
-          _systemInfo = results[1]['data'] ?? results[1];
+          _dashboardData = dashboard;
+          _systemInfo = system;
           _isLoading = false;
         });
       }
     } catch (e) {
+      debugPrint('Dashboard load error: $e');
       if (mounted) {
         setState(() {
           _dashboardData = {};
