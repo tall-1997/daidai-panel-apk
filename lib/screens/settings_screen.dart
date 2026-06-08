@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
+import '../main.dart';
 import '../services/auth_service.dart';
 import '../services/log_service.dart';
 import '../theme/miuix_theme.dart';
@@ -365,6 +366,7 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final authService = context.watch<AuthService>();
+    final themeProvider = context.watch<ThemeProvider>();
     final isAdmin = _user?['role'] == 'admin';
 
     return Scaffold(
@@ -379,6 +381,8 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
                   padding: const EdgeInsets.all(16),
                   children: [
                     _buildProfileCard(isDark, authService),
+                    const SizedBox(height: 16),
+                    _buildAppearanceCard(isDark, themeProvider),
                     if (isAdmin) ...[
                       const SizedBox(height: 16),
                       _buildUserManagementCard(isDark),
@@ -487,6 +491,70 @@ class _SettingsScreenState extends State<SettingsScreen> with RefreshableScreen 
         ),
       ),
     );
+  }
+
+  Widget _buildAppearanceCard(bool isDark, ThemeProvider themeProvider) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '外观设置',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: Icon(
+                themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                color: isDark ? MiuixColors.darkOnSurface : MiuixColors.onSurface,
+              ),
+              title: const Text('深色模式'),
+              subtitle: Text(_getThemeModeText(themeProvider.themeMode)),
+              trailing: DropdownButton<ThemeMode>(
+                value: themeProvider.themeMode,
+                underline: const SizedBox(),
+                items: const [
+                  DropdownMenuItem(
+                    value: ThemeMode.system,
+                    child: Text('跟随系统'),
+                  ),
+                  DropdownMenuItem(
+                    value: ThemeMode.light,
+                    child: Text('浅色模式'),
+                  ),
+                  DropdownMenuItem(
+                    value: ThemeMode.dark,
+                    child: Text('深色模式'),
+                  ),
+                ],
+                onChanged: (ThemeMode? mode) {
+                  if (mode != null) {
+                    themeProvider.setThemeMode(mode);
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getThemeModeText(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.system:
+        return '跟随系统设置自动切换';
+      case ThemeMode.light:
+        return '始终使用浅色模式';
+      case ThemeMode.dark:
+        return '始终使用深色模式';
+    }
   }
 
   Widget _buildUserManagementCard(bool isDark) {
