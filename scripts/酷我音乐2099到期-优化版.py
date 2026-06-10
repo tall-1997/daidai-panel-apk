@@ -80,9 +80,9 @@ def func_a1(iArr, i2, j2):
 def func_a2(j2, jArr, i2):
     a2 = func_a1(static_i, 56, j2)
     for i3 in range(16):
-        jArr2 = static_l
-        iArr = static_k
-        a2 = ((a2 & ~jArr2[iArr[i3]]) >> iArr[i3]) | ((jArr2[iArr[i3]] & a2) << (28 - iArr[i3]))
+        shift = static_k[i3] % 32
+        mask = static_l[static_k[i3]]
+        a2 = ((a2 & ~mask) >> shift) | ((mask & a2) << ((28 - shift) % 32))
         jArr[i3] = func_a1(static_j, 64, a2)
     if i2 == 1:
         for i4 in range(8):
