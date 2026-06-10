@@ -159,8 +159,9 @@ def func_a1(i_arr, i2, j2):
 def func_a2(j2, j_arr, i2):
     a2 = func_a1(STATIC_I, 56, j2)
     for i3 in range(16):
-        a2 = ((a2 & ~STATIC_L[STATIC_K[i3]]) >> STATIC_L[STATIC_K[i3]]) | \
-             ((STATIC_L[STATIC_K[i3]] & a2) << (28 - STATIC_L[STATIC_K[i3]]))
+        shift = STATIC_L[STATIC_K[i3]] % 32
+        mask = STATIC_L[STATIC_K[i3]]
+        a2 = ((a2 & ~mask) >> shift) | ((mask & a2) << ((28 - shift) % 32))
         j_arr[i3] = func_a1(STATIC_J, 64, a2)
     if i2 == 1:
         for i4 in range(8):
