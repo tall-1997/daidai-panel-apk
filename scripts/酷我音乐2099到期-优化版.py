@@ -440,14 +440,71 @@ def open_treasure_box(loginUid, loginSid, appUid, encrypted_dev_id, gold_num=20,
 
 def open_guanggao(loginUid, loginSid, appUid, encrypted_dev_id, gold_num, phone, verbose=True):
     params = {
-        'apiversion': '46', 'adverSpace': '20130101',
-        'loginUid': loginUid, 'loginSid': loginSid, 'appUid': appUid,
-        'terminal': 'ar', 'from': 'videoadver', 'taskId': '', 'goldNum': str(gold_num),
-        'baseTaskGold': '0', 'adverId': '', 'mobile': phone,
-        'listenTime': 0, 'apiv': 10, 'unit': '', 'dynamicVer': 46,
-        'kver': 1, 'rewardType': 0, 'pFrom': 'HTTP/1.1',
+        'apiversion': '46',
+        'adverSpace': '20130101',
+        'loginUid': loginUid,
+        'loginSid': loginSid,
+        'appUid': appUid,
+        'terminal': 'ar',
+        'from': 'videoadver',
+        'taskId': '',
+        'goldNum': '208',
+        'baseTaskGold': '0',
+        'adverId': '',
+        'mobile': phone,
+        'listenTime': 0,
+        'apiv': 10,
+        'unit': '',
+        'dynamicVer': 46,
+        'kver': 1,
+        'rewardType': 0,
+        'pFrom': 'HTTP/1.1',
     }
-    return run_generic_task('广告观看', URL_NEW_DO_LISTEN, params, verbose=verbose)
+    headers = {
+        'Host': 'integralapi.kuwo.cn',
+        'Connection': 'keep-alive',
+        'sec-ch-ua-platform': '"Android"',
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 4a Build/TQ3A.230805.001.S2; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/134.0.6998.135 Mobile Safari/537.36/ kuwopage',
+        'Accept': 'application/json, text/plain, */*',
+        'sec-ch-ua': '"Chromium";v="134", "Not:A-Brand";v="24", "Android WebView";v="134"',
+        'sec-ch-ua-mobile': '?1',
+        'Origin': 'https://h5app.kuwo.cn',
+        'X-Requested-With': 'cn.kuwo.player',
+        'Sec-Fetch-Site': 'same-site',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Dest': 'empty',
+        'Referer': 'https://h5app.kuwo.cn/',
+        'Accept-Encoding': 'gzip, deflate, br, zstd',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+    }
+    try:
+        response = _session.get(URL_NEW_DO_LISTEN, headers=headers, params=params, timeout=30)
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('code') == 200:
+                data = result.get('data', {})
+                status = data.get('status', 0)
+                if status == 1:
+                    obtain = data.get('obtain', 0)
+                    description = data.get('description', '成功')
+                    if verbose:
+                        print('✅ 广告观看成功: 获得 ' + str(obtain) + ' 金币 - ' + description)
+                    return {'success': True, 'obtain': obtain, 'description': description}
+                description = data.get('description', '未知错误')
+                if verbose:
+                    print('⚠️  广告观看失败: ' + description)
+                return {'success': False, 'obtain': 0, 'description': description}
+            error_msg = result.get('msg', '未知错误')
+            if verbose:
+                print('❌ 广告观看请求失败: ' + error_msg)
+            return {'success': False, 'obtain': 0, 'description': error_msg}
+        if verbose:
+            print('❌ 请求失败，状态码: ' + str(response.status_code))
+        return {'success': False, 'obtain': 0, 'description': 'HTTP ' + str(response.status_code)}
+    except Exception as e:
+        if verbose:
+            print('❌ 广告观看异常: ' + str(e))
+        return {'success': False, 'obtain': 0, 'description': str(e)}
 
 def clock_bonus(loginUid, loginSid, appUid, encrypted_dev_id, phone, verbose=True):
     clock_gold_num = 59
@@ -486,8 +543,25 @@ def watch_dada_ad(loginUid, loginSid, appUid, encrypted_dev_id, phone):
 
 def lottery_draw(loginUid, loginSid, appUid, source='kwplayer_ar_12.0.4.1_newpcguanwangmobile.apk', lottery_type='free', verbose=True):
     params = {'loginUid': loginUid, 'loginSid': loginSid, 'appUid': appUid, 'source': source, 'type': lottery_type}
+    headers = {
+        'Host': 'integralapi.kuwo.cn',
+        'Connection': 'keep-alive',
+        'sec-ch-ua-platform': '"Android"',
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 4a Build/TQ3A.230805.001.S2; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.146 Mobile Safari/537.36/ kuwopage',
+        'Accept': 'application/json, text/plain, */*',
+        'sec-ch-ua': '"Android WebView";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+        'sec-ch-ua-mobile': '?1',
+        'Origin': 'https://h5app.kuwo.cn',
+        'X-Requested-With': 'cn.kuwo.player',
+        'Sec-Fetch-Site': 'same-site',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Dest': 'empty',
+        'Referer': 'https://h5app.kuwo.cn/',
+        'Accept-Encoding': 'gzip, deflate, br, zstd',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+    }
     try:
-        response = _session.get('https://integralapi.kuwo.cn/api/v1/online/sign/loterry/getLucky', headers=build_common_headers(), params=params, timeout=30)
+        response = _session.get('https://integralapi.kuwo.cn/api/v1/online/sign/loterry/getLucky', headers=headers, params=params, timeout=30)
         if response.status_code == 200:
             result = response.json()
             code = result.get('code', 0)
@@ -508,6 +582,10 @@ def lottery_draw(loginUid, loginSid, appUid, source='kwplayer_ar_12.0.4.1_newpcg
                     else:
                         print('🎉 抽奖成功: ' + reward_name)
                 return {'success': True, 'message': msg, 'reward_name': reward_name, 'obtain': obtain, 'data': data}
+            if code == 11:
+                if verbose:
+                    print('❌ 抽奖失败: ' + msg)
+                return {'success': False, 'message': msg, 'data': {}}
             if verbose:
                 print('❌ 抽奖失败: ' + msg)
             return {'success': False, 'message': msg, 'data': {}}
@@ -521,15 +599,76 @@ def lottery_draw(loginUid, loginSid, appUid, source='kwplayer_ar_12.0.4.1_newpcg
 
 def watch_surprise_ad(loginUid, loginSid, appUid, encrypted_dev_id, phone, verbose=True):
     params = {
-        'apiversion': '46', 'adverSpace': '20130702', 'verifyStr': '',
-        'loginUid': loginUid, 'loginSid': loginSid, 'appUid': appUid,
-        'terminal': 'ar', 'from': 'surprise', 'taskId': '', 'goldNum': '68',
-        'baseTaskGold': '0', 'adverId': '20130702-77797065644-101', 'token': '',
-        'clickExtraGoldNum': '0', 'secondRewardFlag': '0', 'yyzdSecondRewardFlag': '0',
-        'verificationId': '', 'surpriseType': '', 'mobile': phone,
-        'apiv': '10', 'dynamicVer': '46', 'kver': '1', 'rewardType': '0', 'pFrom': '',
+        'apiversion': '46',
+        'adverSpace': '20130702',
+        'verifyStr': '',
+        'loginUid': loginUid,
+        'loginSid': loginSid,
+        'appUid': appUid,
+        'terminal': 'ar',
+        'from': 'surprise',
+        'taskId': '',
+        'goldNum': '68',
+        'baseTaskGold': '0',
+        'adverId': '20130702-77797065644-101',
+        'token': '',
+        'clickExtraGoldNum': '0',
+        'secondRewardFlag': '0',
+        'yyzdSecondRewardFlag': '0',
+        'verificationId': '',
+        'surpriseType': '',
+        'mobile': phone,
+        'apiv': '10',
+        'dynamicVer': '46',
+        'kver': '1',
+        'rewardType': '0',
+        'pFrom': '',
     }
-    return run_generic_task('惊喜广告', URL_NEW_DO_LISTEN, params, verbose=verbose)
+    headers = {
+        'Host': 'integralapi.kuwo.cn',
+        'Connection': 'keep-alive',
+        'sec-ch-ua-platform': '"Android"',
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 4a Build/TQ3A.230805.001.S2; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.146 Mobile Safari/537.36/ kuwopage',
+        'Accept': 'application/json, text/plain, */*',
+        'sec-ch-ua': '"Android WebView";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+        'sec-ch-ua-mobile': '?1',
+        'Origin': 'https://h5app.kuwo.cn',
+        'X-Requested-With': 'cn.kuwo.player',
+        'Sec-Fetch-Site': 'same-site',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Dest': 'empty',
+        'Referer': 'https://h5app.kuwo.cn/',
+        'Accept-Encoding': 'gzip, deflate, br, zstd',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+    }
+    try:
+        response = _session.get(URL_NEW_DO_LISTEN, headers=headers, params=params, timeout=30)
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('code') == 200:
+                data = result.get('data', {})
+                status = data.get('status', 0)
+                if status == 1:
+                    obtain = data.get('obtain', 0)
+                    description = data.get('description', '成功')
+                    if verbose:
+                        print('✅ 惊喜广告观看成功: 获得 ' + str(obtain) + ' 金币 - ' + description)
+                    return {'success': True, 'obtain': obtain, 'description': description}
+                description = data.get('description', '未知错误')
+                if verbose:
+                    print('⚠️  惊喜广告观看失败: ' + description)
+                return {'success': False, 'obtain': 0, 'description': description}
+            error_msg = result.get('msg', '未知错误')
+            if verbose:
+                print('❌ 惊喜广告观看请求失败: ' + error_msg)
+            return {'success': False, 'obtain': 0, 'description': error_msg}
+        if verbose:
+            print('❌ 请求失败，状态码: ' + str(response.status_code))
+        return {'success': False, 'obtain': 0, 'description': 'HTTP ' + str(response.status_code)}
+    except Exception as e:
+        if verbose:
+            print('❌ 惊喜广告观看异常: ' + str(e))
+        return {'success': False, 'obtain': 0, 'description': str(e)}
 
 # ========== 宝箱任务 ==========
 def run_activity_box_task(loginUid, loginSid, verbose=True):
