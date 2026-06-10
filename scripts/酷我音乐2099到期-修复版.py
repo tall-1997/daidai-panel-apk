@@ -396,11 +396,47 @@ def login(session, username, password):
                 'encrypted_dev_id': encrypted_dev_id,
             }
 
-        # 如果响应是 base64 编码的，尝试解码
+        # 如果响应是 base64 编码的，尝试解密
         try:
-            decoded = base64.b64decode(response_text)
-            decoded_str = decoded.decode('utf-8', errors='ignore')
-            # 尝试解析解码后的内容
+            decoded_bytes = base64.b64decode(response_text)
+            
+            # 尝试 AES 解密（与手机号加密使用相同密钥）
+            try:
+                key = b'ysiVkLJHHnvMWCHq'
+                iv = b'ichYooX+Mb1gRetP'
+                cipher = AES.new(key, AES.MODE_CBC, iv)
+                decrypted = unpad(cipher.decrypt(decoded_bytes), AES.block_size, style='pkcs7')
+                decrypted_str = decrypted.decode('utf-8', errors='ignore')
+                
+                # 尝试解析解密后的 JSON
+                try:
+                    decrypted_json = json.loads(decrypted_str)
+                    if isinstance(decrypted_json, dict):
+                        data = decrypted_json.get('data', decrypted_json)
+                        return {
+                            'loginUid': str(data.get('loginUid', data.get('uid', ''))),
+                            'loginSid': str(data.get('loginSid', data.get('sid', ''))),
+                            'username': str(data.get('username', data.get('uname', username))),
+                            'appUid': str(data.get('appUid', data.get('kid', ''))),
+                            'encrypted_dev_id': encrypted_dev_id,
+                        }
+                except (json.JSONDecodeError, ValueError):
+                    # 解密后不是 JSON，尝试从内容中提取
+                    uid_match = re.search(r'uid[=:]\s*(\d+)', decrypted_str)
+                    sid_match = re.search(r'sid[=:]\s*([a-zA-Z0-9]+)', decrypted_str)
+                    if uid_match and sid_match:
+                        return {
+                            'loginUid': uid_match.group(1),
+                            'loginSid': sid_match.group(1),
+                            'username': username,
+                            'appUid': uid_match.group(1),
+                            'encrypted_dev_id': encrypted_dev_id,
+                        }
+            except Exception:
+                pass
+            
+            # 尝试直接作为 UTF-8 解码
+            decoded_str = decoded_bytes.decode('utf-8', errors='ignore')
             try:
                 decoded_json = json.loads(decoded_str)
                 if isinstance(decoded_json, dict):
@@ -413,17 +449,7 @@ def login(session, username, password):
                         'encrypted_dev_id': encrypted_dev_id,
                     }
             except (json.JSONDecodeError, ValueError):
-                # 解码后不是 JSON，尝试从内容中提取
-                uid_match = re.search(r'uid[=:]\s*(\d+)', decoded_str)
-                sid_match = re.search(r'sid[=:]\s*([a-zA-Z0-9]+)', decoded_str)
-                if uid_match and sid_match:
-                    return {
-                        'loginUid': uid_match.group(1),
-                        'loginSid': sid_match.group(1),
-                        'username': username,
-                        'appUid': uid_match.group(1),
-                        'encrypted_dev_id': encrypted_dev_id,
-                    }
+                pass
         except Exception:
             pass
 
