@@ -360,29 +360,32 @@ def login(session, username, password):
         params = {'f': 'ar', 'q': q}
         response = session.get(URLS['login'], headers=headers, params=params)
 
-        # 调试：打印响应状态和内容
-        print(f'  登录响应状态: {response.status_code}')
+        response_text = response.text.strip()
         
-        # 获取所有 Set-Cookie 头
+        # 尝试解析响应内容
+        try:
+            # 尝试 JSON 解析
+            resp_json = json.loads(response_text)
+            if isinstance(resp_json, dict):
+                # 如果返回 JSON，检查是否包含登录信息
+                if resp_json.get('code') == 200 or resp_json.get('success'):
+                    data = resp_json.get('data', resp_json)
+                    return {
+                        'loginUid': str(data.get('loginUid', data.get('uid', ''))),
+                        'loginSid': str(data.get('loginSid', data.get('sid', ''))),
+                        'username': str(data.get('username', data.get('uname', username))),
+                        'appUid': str(data.get('appUid', data.get('kid', ''))),
+                        'encrypted_dev_id': encrypted_dev_id,
+                    }
+        except (json.JSONDecodeError, ValueError):
+            pass
+        
+        # 尝试从 Cookie 解析（兼容旧版本）
         set_cookies = response.headers.get('Set-Cookie', '')
-        
-        # 也尝试从 response.text 解析
-        response_text = response.text[:500] if response.text else ''
-        print(f'  响应内容前500字符: {response_text}')
-        
-        # 解析 cookie
         username_match = re.search(r'uname3=([^;]+)', set_cookies)
         sid_match = re.search(r'websid=([^;]+)', set_cookies)
         uid_match = re.search(r'userid=([^;]+)', set_cookies)
         account_match = re.search(r't3kwid=([^;]+)', set_cookies)
-
-        # 如果从 header 没找到，尝试从响应体解析
-        if not all([username_match, sid_match, uid_match, account_match]):
-            try:
-                resp_json = response.json()
-                print(f'  响应JSON: {resp_json}')
-            except:
-                pass
 
         if all([username_match, sid_match, uid_match, account_match]):
             return {
@@ -392,16 +395,41 @@ def login(session, username, password):
                 'appUid': account_match.group(1),
                 'encrypted_dev_id': encrypted_dev_id,
             }
-        
-        # 打印调试信息
-        print(f'  Cookie解析详情:')
-        print(f'    uname3: {"✅" if username_match else "❌"}')
-        print(f'    websid: {"✅" if sid_match else "❌"}')
-        print(f'    userid: {"✅" if uid_match else "❌"}')
-        print(f'    t3kwid: {"✅" if account_match else "❌"}')
-        print(f'  Set-Cookie: {set_cookies[:200]}')
-        
-        print('❌ 登录失败: Cookie解析失败')
+
+        # 如果响应是 base64 编码的，尝试解码
+        try:
+            decoded = base64.b64decode(response_text)
+            decoded_str = decoded.decode('utf-8', errors='ignore')
+            # 尝试解析解码后的内容
+            try:
+                decoded_json = json.loads(decoded_str)
+                if isinstance(decoded_json, dict):
+                    data = decoded_json.get('data', decoded_json)
+                    return {
+                        'loginUid': str(data.get('loginUid', data.get('uid', ''))),
+                        'loginSid': str(data.get('loginSid', data.get('sid', ''))),
+                        'username': str(data.get('username', data.get('uname', username))),
+                        'appUid': str(data.get('appUid', data.get('kid', ''))),
+                        'encrypted_dev_id': encrypted_dev_id,
+                    }
+            except (json.JSONDecodeError, ValueError):
+                # 解码后不是 JSON，尝试从内容中提取
+                uid_match = re.search(r'uid[=:]\s*(\d+)', decoded_str)
+                sid_match = re.search(r'sid[=:]\s*([a-zA-Z0-9]+)', decoded_str)
+                if uid_match and sid_match:
+                    return {
+                        'loginUid': uid_match.group(1),
+                        'loginSid': sid_match.group(1),
+                        'username': username,
+                        'appUid': uid_match.group(1),
+                        'encrypted_dev_id': encrypted_dev_id,
+                    }
+        except Exception:
+            pass
+
+        # 如果都失败了，返回基础信息用于调试
+        print(f'  响应内容: {response_text[:200]}')
+        print('❌ 登录失败: 无法解析响应')
         return None
     except Exception as e:
         print(f'❌ 登录异常: {e}')
