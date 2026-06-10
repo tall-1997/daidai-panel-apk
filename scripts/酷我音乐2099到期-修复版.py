@@ -360,11 +360,29 @@ def login(session, username, password):
         params = {'f': 'ar', 'q': q}
         response = session.get(URLS['login'], headers=headers, params=params)
 
-        set_cookie = response.headers.get('Set-Cookie', '')
-        username_match = re.search(r'uname3=([^;]+)', set_cookie)
-        sid_match = re.search(r'websid=([^;]+)', set_cookie)
-        uid_match = re.search(r'userid=([^;]+)', set_cookie)
-        account_match = re.search(r't3kwid=([^;]+)', set_cookie)
+        # 调试：打印响应状态和内容
+        print(f'  登录响应状态: {response.status_code}')
+        
+        # 获取所有 Set-Cookie 头
+        set_cookies = response.headers.get('Set-Cookie', '')
+        
+        # 也尝试从 response.text 解析
+        response_text = response.text[:500] if response.text else ''
+        print(f'  响应内容前500字符: {response_text}')
+        
+        # 解析 cookie
+        username_match = re.search(r'uname3=([^;]+)', set_cookies)
+        sid_match = re.search(r'websid=([^;]+)', set_cookies)
+        uid_match = re.search(r'userid=([^;]+)', set_cookies)
+        account_match = re.search(r't3kwid=([^;]+)', set_cookies)
+
+        # 如果从 header 没找到，尝试从响应体解析
+        if not all([username_match, sid_match, uid_match, account_match]):
+            try:
+                resp_json = response.json()
+                print(f'  响应JSON: {resp_json}')
+            except:
+                pass
 
         if all([username_match, sid_match, uid_match, account_match]):
             return {
@@ -374,6 +392,15 @@ def login(session, username, password):
                 'appUid': account_match.group(1),
                 'encrypted_dev_id': encrypted_dev_id,
             }
+        
+        # 打印调试信息
+        print(f'  Cookie解析详情:')
+        print(f'    uname3: {"✅" if username_match else "❌"}')
+        print(f'    websid: {"✅" if sid_match else "❌"}')
+        print(f'    userid: {"✅" if uid_match else "❌"}')
+        print(f'    t3kwid: {"✅" if account_match else "❌"}')
+        print(f'  Set-Cookie: {set_cookies[:200]}')
+        
         print('❌ 登录失败: Cookie解析失败')
         return None
     except Exception as e:
